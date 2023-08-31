@@ -1,0 +1,64 @@
+function [units,unitsx]=plx500_refreshXL(monkinitial);
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% plx500_refreshXL(files); %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% written by AHB, Sept 2008
+% Loads the latest data from the XLS spreadsheet and saves it as a *.mat
+% structure.  This output can then be used by other programs to create
+% lists of neurons that meet certain criteria (e.g., all neurons within a
+% given grid location).
+
+%%% SETUP DEFAULTS
+warning off;
+hmiconfig=generate_hmi_configplex; % generates and loads config file
+if strcmp(monkinitial,'S')==1
+    monkeyname = 'Stewie';
+    sheetname='RSVP Cells_S';
+elseif strcmp(monkinitial,'W')==1
+end
+start=5; % start row
+maxunits=700;
+
+%%% LOAD DATA
+[crap,unitsx.PlxFile]=xlsread(hmiconfig.excelfile,sheetname,['B',num2str(start),':B',num2str(maxunits)]); % alpha, PlexonFilename
+[crap,unitsx.UnitName]=xlsread(hmiconfig.excelfile,sheetname,['C',num2str(start),':C',num2str(maxunits)]); % alpha, Unitname
+%[crap,unitsx.UnitMatch]=xlsread(hmiconfig.excelfile,sheetname,['D',num2str(start),':D,num2str(maxunits)]); % alpha, Unitmatch
+[crap,unitsx.GridLoc]=xlsread(hmiconfig.excelfile,sheetname,['E',num2str(start),':E',num2str(maxunits)]); % alphanumeric, GridLocation
+unitsx.Depth=xlsread(hmiconfig.excelfile,sheetname,['F',num2str(start),':F',num2str(maxunits)]); % numeric, Depth
+[crap,unitsx.APIndex]=xlsread(hmiconfig.excelfile,sheetname,['G',num2str(start),':G',num2str(maxunits)]); % alphanumeric, APIndex
+[crap,unitsx.EstimatedLocation]=xlsread(hmiconfig.excelfile,sheetname,['H',num2str(start),':H',num2str(maxunits)]); % alphanumeric, Estimated Location
+[crap,unitsx.SensoryAuto]=xlsread(hmiconfig.excelfile,sheetname,['I',num2str(start),':I',num2str(maxunits)]); % alpha, Sensory, automated
+[crap,unitsx.SensoryConf]=xlsread(hmiconfig.excelfile,sheetname,['J',num2str(start),':J',num2str(maxunits)]); % alpha, Sensory, confirmed
+[crap,unitsx.CategoryAuto]=xlsread(hmiconfig.excelfile,sheetname,['K',num2str(start),':K',num2str(maxunits)]); % alpha, Sensory, automated
+[crap,unitsx.CategoryConf]=xlsread(hmiconfig.excelfile,sheetname,['L',num2str(start),':L',num2str(maxunits)]); % alpha, Sensory, confirmed
+[crap,unitsx.SelectiveAuto]=xlsread(hmiconfig.excelfile,sheetname,['M',num2str(start),':M',num2str(maxunits)]); % alpha, Selective, automated
+[crap,unitsx.SelectiveConf]=xlsread(hmiconfig.excelfile,sheetname,['N',num2str(start),':N',num2str(maxunits)]); % alpha, Selective, confirmed
+[crap,unitsx.ExciteAuto]=xlsread(hmiconfig.excelfile,sheetname,['O',num2str(start),':O',num2str(maxunits)]); % alpha, Excite/Inhibit, automated
+[crap,unitsx.ExciteConf]=xlsread(hmiconfig.excelfile,sheetname,['P',num2str(start),':P',num2str(maxunits)]); % alpha, Excite/Inhibit, confirmed
+unitsx.Quality=xlsread(hmiconfig.excelfile,sheetname,['Q',num2str(start),':Q',num2str(maxunits)]); % numeric
+
+%%% RESHUFFLE STRUCTURE AND SAVE INDIVIDUAL LOCATION FILES
+for un=1:length(unitsx.PlxFile),
+    newname=char(unitsx.PlxFile(un));
+    units(un).PlxFile=unitsx.PlxFile(un);    
+    units(un).FullUnitName=[newname(1:end-4),'-',char(unitsx.UnitName(un))];
+    unitsx.FullUnitName(un)={units(un).FullUnitName};
+    units(un).UnitName=unitsx.UnitName(un);
+    units(un).GridLoc=unitsx.GridLoc(un);
+    units(un).Depth=unitsx.Depth(un);
+    units(un).APIndex=unitsx.APIndex(un);
+    units(un).EstimatedLocation=unitsx.EstimatedLocation(un);
+    units(un).SensoryAuto=unitsx.SensoryAuto(un);
+    units(un).SensoryConf=unitsx.SensoryConf(un);
+    units(un).CategoryAuto=unitsx.CategoryAuto(un);
+    units(un).CategoryConf=unitsx.CategoryConf(un);
+    units(un).SelectiveAuto=unitsx.SelectiveAuto(un);
+    units(un).SelectiveConf=unitsx.SelectiveConf(un);
+    units(un).ExciteAuto=unitsx.ExciteAuto(un);
+    units(un).ExciteConf=unitsx.ExciteConf(un);
+    units(un).Quality=unitsx.Quality(un);
+end
+outputfname = [hmiconfig.rsvpanal,sheetname,'_XLS_Neurons.mat'];
+disp('Saving excel structures...')
+
+save(outputfname,'unitsx','units');

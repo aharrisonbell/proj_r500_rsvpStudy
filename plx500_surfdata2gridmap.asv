@@ -1,0 +1,19 @@
+function gridmap=plx500_surfdata2gridmap(surfdata)
+% Function to take surfdata (created by plx500_sortgrid_*) and convert it
+% into a format suitable for pcolor
+
+% create blank gridmap
+gridmap=zeros(16,16)-1;
+
+% set nonholes to -1
+
+
+
+% convert surfdata X and Y to 1-15
+gridtemp=surfdata;
+gridtemp(:,1)=gridtemp(:,1)-4;
+gridtemp(:,2)=gridtemp(:,2)-14;
+for rr=1:size(gridtemp,1),
+    gridmap(gridtemp(rr,1),gridtemp(rr,2))=gridtemp(rr,3);
+end
+return

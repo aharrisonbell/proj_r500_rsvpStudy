@@ -1,0 +1,164 @@
+function [comparematrix comparematrix2]=plx500_project2_imgint;
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% plx500_project2_imgint %
+%%%%%%%%%%%%%%%%%%%%%%%%%%
+% written by AHB, Jan2009,
+% Generate image comparison matrix based on pixel intensity
+%%% SETUP DEFAULTS
+warning off; close all;
+hmiconfig=generate_hmi_configplex; % generates and loads config file
+rootdir='C:\Documents and Settings\Andrew Bell\My Documents\PlexonData\andy_plexcode\RSVPL\';
+% step 1 - load all images
+disp('Loading images...')
+imgstruct=struct('faces',[],'fruit',[]','places',[],'bparts',[],'objects',[],...
+    'faces_gs',[],'fruit_gs',[]','places_gs',[],'bparts_gs',[],'objects_gs',[],...
+    'faces_f',[],'fruit_f',[]','places_f',[],'bparts_f',[],'objects_f',[],'images',[]);
+for im=1:20,
+    if im<10,
+        imgstruct(im).images=imread([rootdir,'a0',num2str(im),'.bmp']);
+        imgstruct(im+20).images=imread([rootdir,'b0',num2str(im),'.bmp']);
+        imgstruct(im+40).images=imread([rootdir,'c0',num2str(im),'.bmp']);
+        imgstruct(im+60).images=imread([rootdir,'d0',num2str(im),'.bmp']);
+        imgstruct(im+80).images=imread([rootdir,'e0',num2str(im),'.bmp']);
+    else
+        imgstruct(im).images=imread([rootdir,'a',num2str(im),'.bmp']);
+        imgstruct(im+20).images=imread([rootdir,'b',num2str(im),'.bmp']);
+        imgstruct(im+40).images=imread([rootdir,'c',num2str(im),'.bmp']);
+        imgstruct(im+60).images=imread([rootdir,'d',num2str(im),'.bmp']);
+        imgstruct(im+80).images=imread([rootdir,'e',num2str(im),'.bmp']);
+    end
+end
+disp('Done.'); disp(' ');
+disp('Converting images to grayscale...')
+for im=1:100,
+    % step 2 - convert all images to grayscale (remove excess channels)
+    imgstruct(im).images_gs=imgstruct(im).images(:,:,1);
+end
+disp('Done.'); disp(' ');
+disp('Centering images on 600x600 canvas...')
+for im=1:100,
+    % step 3 - centre images in 600x600 empty matrix
+    imgstruct(im).images_f=centreimage(imgstruct(im).images_gs);
+end
+disp('Done.'); disp(' ');
+disp('Calculating discrete 2D Fourier transforms...')
+for im=1:100,
+    % step 4 - Calculate frequency spectrograms
+    imgstruct(im).images_spect=calc_fft(imgstruct(im).images_f);
+end
+disp('Done.'); disp(' ');
+disp('Graphing figures...')
+figure
+for i=1:20, subplot(4,5,i), imshow(imgstruct(i).images_f); caxis([0 256]); end
+figure
+for i=1:20, subplot(4,5,i), imshow(imgstruct(i+20).images_f); caxis([0 256]); end
+figure
+for i=1:20, subplot(4,5,i), imshow(imgstruct(i+40).images_f); caxis([0 256]); end
+figure
+for i=1:20, subplot(4,5,i), imshow(imgstruct(i+60).images_f); caxis([0 256]); end
+figure
+for i=1:20, subplot(4,5,i), imshow(imgstruct(i+80).images_f); caxis([0 256]); end
+
+
+figure
+for i=1:20, subplot(4,5,i), imshow(imgstruct(i).images_spect); caxis([0 3500]); colormap(jet); end
+figure
+for i=1:20, subplot(4,5,i), imshow(imgstruct(i+20).images_spect); caxis([0 3500]); colormap(jet); end
+figure
+for i=1:20, subplot(4,5,i), imshow(imgstruct(i+40).images_spect); caxis([0 3500]); colormap(jet); end
+figure
+for i=1:20, subplot(4,5,i), imshow(imgstruct(i+60).images_spect); caxis([0 3500]); colormap(jet); end
+figure
+for i=1:20, subplot(4,5,i), imshow(imgstruct(i+80).images_spect); caxis([0 3500]); colormap(jet); end
+
+disp('Done.'); disp(' ');
+disp('Compare pixel intensity and spectral frequency...')
+% step 4 - compare pairs of images
+comparematrix=zeros(100,100);
+for xx=1:100, for yy=1:100,
+        comparematrix(xx,yy)=compareimagepair(imgstruct(xx).images_f,imgstruct(yy).images_f);
+    end
+end
+comparematrix2=zeros(100,100);
+for xx=1:100, for yy=1:100,
+        comparematrix2(xx,yy)=compareimagepair(imgstruct(xx).images_spect,imgstruct(yy).images_spect);
+    end
+end
+
+figure; clf; cla; %
+set(gcf,'Units','Normalized','Position',[0.05 0.2 0.9 0.6])
+set(gca,'FontName','Arial','FontSize',8)
+labels={'Face','Fruit','Place','Bodypart','Object'};
+subplot(1,2,1)
+pcolor(comparematrix); shading flat
+hold on
+plot([0 100],[20 20],'w-');
+plot([0 100],[40 40],'w-');
+plot([0 100],[60 60],'w-');
+plot([0 100],[80 80],'w-');
+plot([20 20],[0 100],'w-');
+plot([40 40],[0 100],'w-');
+plot([60 60],[0 100],'w-');
+plot([80 80],[0 100],'w-');
+axis square; axis ij; axis off;
+caxis([0 20]); colorbar('EastOutside','FontSize',6)
+text(10,102,'Faces','FontSize',7,'HorizontalAlignment','Center')
+text(30,102,'Fruit','FontSize',7,'HorizontalAlignment','Center')
+text(50,102,'Places','FontSize',7,'HorizontalAlignment','Center')
+text(70,102,'Bodyparts','FontSize',7,'HorizontalAlignment','Center')
+text(90,102,'Objects','FontSize',7,'HorizontalAlignment','Center')
+text(-1,10,'Faces','FontSize',7,'VerticalAlignment','Middle','Rotation',90)
+text(-1,30,'Fruit','FontSize',7,'VerticalAlignment','Middle','Rotation',90)
+text(-1,50,'Places','FontSize',7,'VerticalAlignment','Middle','Rotation',90)
+text(-1,70,'Bodyparts','FontSize',7,'VerticalAlignment','Middle','Rotation',90)
+text(-1,90,'Objects','FontSize',7,'VerticalAlignment','Middle','Rotation',90)
+title('Image Dissimilarity - Pixel Intensity','FontWeight','Bold','FontSize',10)
+subplot(1,2,2)
+pcolor(comparematrix2); shading flat
+hold on
+plot([0 100],[20 20],'w-');
+plot([0 100],[40 40],'w-');
+plot([0 100],[60 60],'w-');
+plot([0 100],[80 80],'w-');
+plot([20 20],[0 100],'w-');
+plot([40 40],[0 100],'w-');
+plot([60 60],[0 100],'w-');
+plot([80 80],[0 100],'w-');
+axis square; axis ij; axis off;
+caxis([0 3500]); colorbar('EastOutside','FontSize',6)
+text(10,102,'Faces','FontSize',7,'HorizontalAlignment','Center')
+text(30,102,'Fruit','FontSize',7,'HorizontalAlignment','Center')
+text(50,102,'Places','FontSize',7,'HorizontalAlignment','Center')
+text(70,102,'Bodyparts','FontSize',7,'HorizontalAlignment','Center')
+text(90,102,'Objects','FontSize',7,'HorizontalAlignment','Center')
+text(-1,10,'Faces','FontSize',7,'VerticalAlignment','Middle','Rotation',90)
+text(-1,30,'Fruit','FontSize',7,'VerticalAlignment','Middle','Rotation',90)
+text(-1,50,'Places','FontSize',7,'VerticalAlignment','Middle','Rotation',90)
+text(-1,70,'Bodyparts','FontSize',7,'VerticalAlignment','Middle','Rotation',90)
+text(-1,90,'Objects','FontSize',7,'VerticalAlignment','Middle','Rotation',90)
+title('Image Dissimilarity - Spectrogram','FontWeight','Bold','FontSize',10)
+jpgfigname=[hmiconfig.rsvpanal,'RSVP_Project2_Fig1_ImageCompare.jpg']; print(gcf,jpgfigname,'-djpeg') % generates an JPEG file of the figure
+illfigname=[hmiconfig.rsvpanal,'RSVP_Project2_Fig1_ImageCompare.ai']; print(gcf,illfigname,'-dill') % generates an Adobe Illustrator file of the figure
+if hmiconfig.printer==1, print; end % prints the figure to the default printer (if printer==1)
+return
+
+function output=centreimage(input);
+output=zeros(600,600);
+[r,c]=size(input);
+lowy=round((600-r)/2);
+lowx=round((600-c)/2);
+output(lowy:lowy+size(input,1)-1,lowx:lowx+size(input,2)-1)=input;
+return
+
+function output=calc_fft(input);
+tmp1=paddedsize(size(input)); % increase size of image
+F=fft2(double(input));   %,tmp1(1),tmp1(2));
+clear input
+output=abs(F);
+return
+
+function output=compareimagepair(input1,input2);
+temp=input2-input1;
+output=abs(mean(mean(temp)));
+%imshow(log(1+imfft2),[])
+return

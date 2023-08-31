@@ -1,0 +1,516 @@
+function plx500_project1_population;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% plx500_project1_population %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% written by AHB, Jan2009,
+% based on plx500_sortgrid - adapted to follow RSVP500_Outline, and to be
+% compatible with both Monkeys
+% MONKINITIAL (required) = 'W' or 'S'
+
+%%% SETUP DEFAULTS
+warning off; close all;
+hmiconfig=generate_hmi_configplex; % generates and loads config file
+fontsize_sml=7; fontsize_med=8; fontsize_lrg=9;
+% A/P index divisions
+ant=[19 18 17 16 15];
+mid=[14 13 12 11 10];
+post=[9 8 7 6 5];
+%hmiconfig.printer=1;
+
+disp('*****************************************************************')
+disp('* plx500_project1_population.m - Compile data from both monkeys *')
+disp('*    to generate population histograms/bargraphs.  Both monkeys *')
+disp('*    must have been run through plx500_project1.m               *')
+disp('*****************************************************************')
+
+%%% LOAD AND RENAME MONKEY DATA
+load([hmiconfig.rootdir,'rsvp500_project1',filesep,'Project1DataNT_Stewie.mat']);
+dataS=data; unit_indexS=unit_index; unitdataS=unitdata;
+load([hmiconfig.rootdir,'rsvp500_project1',filesep,'Project1DataNT_Wiggum.mat']);
+dataW=data; unit_indexW=unit_index; unitdataW=unitdata;
+clear data unit_index unitdata
+
+%%% GENERATE FIGURES (see RSVP500_Outline.docx for details)
+% Figure 2  (Neuron Distribution Figure)
+disp('Figure 2  (Neuron Distribution Figure)')
+figure; clf; cla; %
+set(gcf,'Units','Normalized','Position',[0.05 0.15 0.8 0.6])
+set(gca,'FontName','Arial','FontSize',8)
+subplot(2,3,1); 
+piedata(1)=length(find(strcmp(unit_indexS.SensoryConf,'Sensory')==1));
+piedata(2)=length(find(strcmp(unit_indexS.SensoryConf,'Non-Responsive')==1));
+piedata(3)=length(find(strcmp(unit_indexW.SensoryConf,'Sensory')==1));
+piedata(4)=length(find(strcmp(unit_indexW.SensoryConf,'Non-Responsive')==1));
+pie([sum(piedata([1 3])) sum(piedata([2 4]))],...
+    {['n=',num2str(sum(piedata([1 3]))),'(',num2str((sum(piedata([1 3]))/sum(piedata))*100,'%1.2g'),'%)'] ...
+    ['n=',num2str(sum(piedata([2 4]))),'(',num2str((sum(piedata([2 4]))/sum(piedata))*100,'%1.2g'),'%)']})
+title(['(A) Sensory/Non-Responsive (n=',num2str(sum(piedata)),')'],'FontSize',fontsize_med,'FontWeight','Bold')
+legend('S','NS','Location','Best'); set(gca,'FontSize',7)
+subplot(2,3,2); piedata=[];
+piedata(1)=length(find(strcmp(unit_indexS.ExciteConf,'Excite')==1 & strcmp(unit_indexS.SensoryConf,'Sensory')==1))+ ...
+    length(find(strcmp(unit_indexW.ExciteConf,'Excite')==1 & strcmp(unit_indexW.SensoryConf,'Sensory')==1));
+piedata(2)=length(find(strcmp(unit_indexS.ExciteConf,'Both')==1 & strcmp(unit_indexS.SensoryConf,'Sensory')==1))+...
+    length(find(strcmp(unit_indexW.ExciteConf,'Both')==1 & strcmp(unit_indexW.SensoryConf,'Sensory')==1));
+piedata(3)=length(find(strcmp(unit_indexS.ExciteConf,'Inhibit')==1 & strcmp(unit_indexS.SensoryConf,'Sensory')==1))+...
+    length(find(strcmp(unit_indexW.ExciteConf,'Inhibit')==1 & strcmp(unit_indexW.SensoryConf,'Sensory')==1));
+pie(piedata,...
+    {['n=',num2str(piedata(1)),'(',num2str(piedata(1)/sum(piedata)*100,'%1.2g'),'%)'] ...
+    ['n=',num2str(piedata(2)),'(',num2str(piedata(2)/sum(piedata)*100,'%1.2g'),'%)'] ...
+    ['n=',num2str(piedata(3)),'(',num2str(piedata(3)/sum(piedata)*100,'%1.2g'),'%)']})
+title(['(B) Excite/Inhibit/Both (n=',num2str(sum(piedata)),')'],'FontSize',fontsize_med,'FontWeight','Bold')
+legend('E','I','B','Location','Best'); set(gca,'FontSize',7)
+subplot(2,3,3); bardataS=[]; bardataW=[]; bardata=[]; % breakdown of category selectivity according to response type
+bardataS(1,1)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Excite')==1));
+bardataS(1,2)=length(find(strcmp(unit_indexS.SelectiveConf,'Not Selective')==1 & strcmp(unit_indexS.ExciteConf,'Excite')==1));
+bardataS(2,1)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Both')==1));
+bardataS(2,2)=length(find(strcmp(unit_indexS.SelectiveConf,'Not Selective')==1 & strcmp(unit_indexS.ExciteConf,'Both')==1));
+bardataS(3,1)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Inhibit')==1));
+bardataS(3,2)=length(find(strcmp(unit_indexS.SelectiveConf,'Not Selective')==1 & strcmp(unit_indexS.ExciteConf,'Inhibit')==1));
+bardataW(1,1)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Excite')==1));
+bardataW(1,2)=length(find(strcmp(unit_indexW.SelectiveConf,'Not Selective')==1 & strcmp(unit_indexW.ExciteConf,'Excite')==1));
+bardataW(2,1)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Both')==1));
+bardataW(2,2)=length(find(strcmp(unit_indexW.SelectiveConf,'Not Selective')==1 & strcmp(unit_indexW.ExciteConf,'Both')==1));
+bardataW(3,1)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Inhibit')==1));
+bardataW(3,2)=length(find(strcmp(unit_indexW.SelectiveConf,'Not Selective')==1 & strcmp(unit_indexW.ExciteConf,'Inhibit')==1));
+bardata=bardataS+bardataW;
+bardata(1,3)=bardata(1,1)/sum(bardata(1,1:2)); bardata(1,4)=bardata(1,2)/sum(bardata(1,1:2));
+bardata(2,3)=bardata(2,1)/sum(bardata(2,1:2)); bardata(2,4)=bardata(2,2)/sum(bardata(2,1:2));
+bardata(3,3)=bardata(3,1)/sum(bardata(3,1:2)); bardata(3,4)=bardata(3,2)/sum(bardata(3,1:2));
+bar(1:3,bardata(:,3:4),'stack')
+text(1,.25,['n=',num2str(bardata(1,1))],'FontSize',6,'HorizontalAlignment','Center')
+text(1,.75,['n=',num2str(bardata(1,2))],'FontSize',6,'HorizontalAlignment','Center')
+text(2,.25,['n=',num2str(bardata(2,1))],'FontSize',6,'HorizontalAlignment','Center')
+text(2,.75,['n=',num2str(bardata(2,2))],'FontSize',6,'HorizontalAlignment','Center')
+text(3,.25,['n=',num2str(bardata(3,1))],'FontSize',6,'HorizontalAlignment','Center')
+text(3,.75,['n=',num2str(bardata(3,2))],'FontSize',6,'HorizontalAlignment','Center')
+title(['(C) Selective/Non-Selective (n=',num2str(sum(sum(bardata(:,1:2)))),')'],'FontSize',fontsize_med,'FontWeight','Bold')
+legend('S','NS','Location','Best'); set(gca,'FontSize',7)
+set(gca,'XTick',1:3,'XTickLabel',{'E','B','I'}); ylabel('% of Neurons');
+axis square
+subplot(2,3,4); bardataS=[]; bardataW=[]; bardata=[]; % preferred excitatory categories
+bardataS(1,1)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Excite')==1 & strcmp(unit_indexS.pref_excite,'Faces')==1));
+bardataS(1,2)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Excite')==1 & strcmp(unit_indexS.pref_excite,'BodyParts')==1));
+bardataS(1,3)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Excite')==1 & strcmp(unit_indexS.pref_excite,'Fruit')==1));
+bardataS(1,4)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Excite')==1 & strcmp(unit_indexS.pref_excite,'Objects')==1));
+bardataS(1,5)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Excite')==1 & strcmp(unit_indexS.pref_excite,'Places')==1));
+bardataS(2,1)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Both')==1 & strcmp(unit_indexS.pref_excite,'Faces')==1));
+bardataS(2,2)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Both')==1 & strcmp(unit_indexS.pref_excite,'BodyParts')==1));
+bardataS(2,3)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Both')==1 & strcmp(unit_indexS.pref_excite,'Fruit')==1));
+bardataS(2,4)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Both')==1 & strcmp(unit_indexS.pref_excite,'Objects')==1));
+bardataS(2,5)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Both')==1 & strcmp(unit_indexS.pref_excite,'Places')==1));
+bardataW(1,1)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Excite')==1 & strcmp(unit_indexW.pref_excite,'Faces')==1));
+bardataW(1,2)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Excite')==1 & strcmp(unit_indexW.pref_excite,'BodyParts')==1));
+bardataW(1,3)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Excite')==1 & strcmp(unit_indexW.pref_excite,'Fruit')==1));
+bardataW(1,4)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Excite')==1 & strcmp(unit_indexW.pref_excite,'Objects')==1));
+bardataW(1,5)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Excite')==1 & strcmp(unit_indexW.pref_excite,'Places')==1));
+bardataW(2,1)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Both')==1 & strcmp(unit_indexW.pref_excite,'Faces')==1));
+bardataW(2,2)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Both')==1 & strcmp(unit_indexW.pref_excite,'BodyParts')==1));
+bardataW(2,3)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Both')==1 & strcmp(unit_indexW.pref_excite,'Fruit')==1));
+bardataW(2,4)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Both')==1 & strcmp(unit_indexW.pref_excite,'Objects')==1));
+bardataW(2,5)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Both')==1 & strcmp(unit_indexW.pref_excite,'Places')==1));
+bardata=bardataS+bardataW;
+bardata(1,6) =bardata(1,1)/sum(bardata(1,1:5)); bardata(2,6) =bardata(2,1)/sum(bardata(2,1:5));
+bardata(1,7) =bardata(1,2)/sum(bardata(1,1:5)); bardata(2,7) =bardata(2,2)/sum(bardata(2,1:5));
+bardata(1,8) =bardata(1,3)/sum(bardata(1,1:5)); bardata(2,8) =bardata(2,3)/sum(bardata(2,1:5));
+bardata(1,9) =bardata(1,4)/sum(bardata(1,1:5)); bardata(2,9) =bardata(2,4)/sum(bardata(2,1:5));
+bardata(1,10)=bardata(1,5)/sum(bardata(1,1:5)); bardata(2,10)=bardata(2,5)/sum(bardata(2,1:5));
+bar(1:2,bardata(1:2,6:10),'stack')
+text(1,.15,['n=',num2str(bardata(1,1))],'FontSize',6,'HorizontalAlignment','Center')
+text(1,.35,['n=',num2str(bardata(1,2))],'FontSize',6,'HorizontalAlignment','Center')
+text(1,.55,['n=',num2str(bardata(1,3))],'FontSize',6,'HorizontalAlignment','Center')
+text(1,.75,['n=',num2str(bardata(1,4))],'FontSize',6,'HorizontalAlignment','Center')
+text(1,.95,['n=',num2str(bardata(1,5))],'FontSize',6,'HorizontalAlignment','Center')
+text(2,.15,['n=',num2str(bardata(2,1))],'FontSize',6,'HorizontalAlignment','Center')
+text(2,.35,['n=',num2str(bardata(2,2))],'FontSize',6,'HorizontalAlignment','Center')
+text(2,.55,['n=',num2str(bardata(2,3))],'FontSize',6,'HorizontalAlignment','Center')
+text(2,.75,['n=',num2str(bardata(2,4))],'FontSize',6,'HorizontalAlignment','Center')
+text(2,.95,['n=',num2str(bardata(2,5))],'FontSize',6,'HorizontalAlignment','Center')
+title(['(D) Excitatory Responses (n=',num2str(sum(sum(bardata(:,1:5)))),')'],'FontSize',fontsize_med,'FontWeight','Bold')
+legend('F','Bp','Ft','Ob','Pl','Location','Best'); set(gca,'FontSize',7)
+set(gca,'XTick',1:2,'XTickLabel',{'E','B'}); ylabel('% of Neurons');
+axis square
+subplot(2,3,5); bardataS=[]; bardataW=[]; bardata=[]; % preferred inhibited categories
+bardataS(1,1)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Both')==1 & strcmp(unit_indexS.pref_inhibit,'Faces')==1));
+bardataS(1,2)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Both')==1 & strcmp(unit_indexS.pref_inhibit,'BodyParts')==1));
+bardataS(1,3)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Both')==1 & strcmp(unit_indexS.pref_inhibit,'Fruit')==1));
+bardataS(1,4)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Both')==1 & strcmp(unit_indexS.pref_inhibit,'Objects')==1));
+bardataS(1,5)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Both')==1 & strcmp(unit_indexS.pref_inhibit,'Places')==1));
+bardataS(2,1)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Inhibit')==1 & strcmp(unit_indexS.pref_inhibit,'Faces')==1));
+bardataS(2,2)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Inhibit')==1 & strcmp(unit_indexS.pref_inhibit,'BodyParts')==1));
+bardataS(2,3)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Inhibit')==1 & strcmp(unit_indexS.pref_inhibit,'Fruit')==1));
+bardataS(2,4)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Inhibit')==1 & strcmp(unit_indexS.pref_inhibit,'Objects')==1));
+bardataS(2,5)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Inhibit')==1 & strcmp(unit_indexS.pref_inhibit,'Places')==1));
+bardataW(1,1)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Both')==1 & strcmp(unit_indexW.pref_inhibit,'Faces')==1));
+bardataW(1,2)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Both')==1 & strcmp(unit_indexW.pref_inhibit,'BodyParts')==1));
+bardataW(1,3)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Both')==1 & strcmp(unit_indexW.pref_inhibit,'Fruit')==1));
+bardataW(1,4)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Both')==1 & strcmp(unit_indexW.pref_inhibit,'Objects')==1));
+bardataW(1,5)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Both')==1 & strcmp(unit_indexW.pref_inhibit,'Places')==1));
+bardataW(2,1)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Inhibit')==1 & strcmp(unit_indexW.pref_inhibit,'Faces')==1));
+bardataW(2,2)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Inhibit')==1 & strcmp(unit_indexW.pref_inhibit,'BodyParts')==1));
+bardataW(2,3)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Inhibit')==1 & strcmp(unit_indexW.pref_inhibit,'Fruit')==1));
+bardataW(2,4)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Inhibit')==1 & strcmp(unit_indexW.pref_inhibit,'Objects')==1));
+bardataW(2,5)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Inhibit')==1 & strcmp(unit_indexW.pref_inhibit,'Places')==1));
+bardata=bardataS+bardataW;
+bardata(1,6) =bardata(1,1)/sum(bardata(1,1:5)); bardata(2,6) =bardata(2,1)/sum(bardata(2,1:5));
+bardata(1,7) =bardata(1,2)/sum(bardata(1,1:5)); bardata(2,7) =bardata(2,2)/sum(bardata(2,1:5));
+bardata(1,8) =bardata(1,3)/sum(bardata(1,1:5)); bardata(2,8) =bardata(2,3)/sum(bardata(2,1:5));
+bardata(1,9) =bardata(1,4)/sum(bardata(1,1:5)); bardata(2,9) =bardata(2,4)/sum(bardata(2,1:5));
+bardata(1,10)=bardata(1,5)/sum(bardata(1,1:5)); bardata(2,10)=bardata(2,5)/sum(bardata(2,1:5));
+bar(1:2,bardata(1:2,6:10),'stack')
+text(1,.15,['n=',num2str(bardata(1,1))],'FontSize',6,'HorizontalAlignment','Center')
+text(1,.35,['n=',num2str(bardata(1,2))],'FontSize',6,'HorizontalAlignment','Center')
+text(1,.55,['n=',num2str(bardata(1,3))],'FontSize',6,'HorizontalAlignment','Center')
+text(1,.75,['n=',num2str(bardata(1,4))],'FontSize',6,'HorizontalAlignment','Center')
+text(1,.95,['n=',num2str(bardata(1,5))],'FontSize',6,'HorizontalAlignment','Center')
+text(2,.15,['n=',num2str(bardata(2,1))],'FontSize',6,'HorizontalAlignment','Center')
+text(2,.35,['n=',num2str(bardata(2,2))],'FontSize',6,'HorizontalAlignment','Center')
+text(2,.55,['n=',num2str(bardata(2,3))],'FontSize',6,'HorizontalAlignment','Center')
+text(2,.75,['n=',num2str(bardata(2,4))],'FontSize',6,'HorizontalAlignment','Center')
+text(2,.95,['n=',num2str(bardata(2,5))],'FontSize',6,'HorizontalAlignment','Center')
+title(['(E) Inhibited Responses (n=',num2str(sum(sum(bardata(:,1:5)))),')'],'FontSize',fontsize_med,'FontWeight','Bold')
+legend('F','Bp','Ft','Ob','Pl','Location','Best'); set(gca,'FontSize',7); ylabel('% of Neurons');
+set(gca,'XTick',1:2,'XTickLabel',{'B','I'})
+axis square
+subplot(2,3,6); pmapS=zeros(5,5); pmapW=zeros(5,5); % both neurons
+catnames={'Faces','BodyParts','Fruit','Objects','Places'};
+for y=1:5, % each column (inhibit responses)
+    for x=1:5, % each row (excite responses)
+        pmapS(y,x)=length(find(strcmp(unit_indexS.SelectiveConf,'Selective')==1 & strcmp(unit_indexS.ExciteConf,'Both')==1 & ...
+            strcmp(unit_indexS.pref_excite,catnames(x))==1 & strcmp(unit_indexS.pref_inhibit,catnames(y))==1));
+    end
+end
+for y=1:5, % each column (inhibit responses)
+    for x=1:5, % each row (excite responses)
+        pmapW(y,x)=length(find(strcmp(unit_indexW.SelectiveConf,'Selective')==1 & strcmp(unit_indexW.ExciteConf,'Both')==1 & ...
+            strcmp(unit_indexW.pref_excite,catnames(x))==1 & strcmp(unit_indexW.pref_inhibit,catnames(y))==1));
+    end
+end
+pmap=pmapS+pmapW; pmap=[pmap;[0 0 0 0 0]]; pmap=[pmap,[0 0 0 0 0 0]'];
+tt=sum(sum(pmap)); pmap2=pmap/tt;
+pcolor(pmap2); shading flat; set(gca,'YDir','reverse');
+axis square; set(gca,'CLim',[0 .20]); 
+mp=colormap; mp(1,:)=[0.7529 0.7529 0.7529]; colormap(mp)
+set(gca,'XTick',1.5:5.5,'XTickLabel',catnames,'YTick',1.5:5.5,'YTickLabel',catnames,'FontSize',7)
+ylabel('Preferred Inhibited Category','fontsize',7);
+xlabel('Preferred Excited Category','fontsize',7);
+colorbar('SouthOutside','FontSize',6)
+title(['(F) Breakdown of Excite/Inhibited Responses of BOTH Neurons (n=',num2str(tt),')'],'FontSize',fontsize_med,'FontWeight','Bold')
+jpgfigname=[hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_Distribution.jpg']; print(gcf,jpgfigname,'-djpeg') % generates an JPEG file of the figure
+illfigname=[hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_Distribution.ai']; print(gcf,illfigname,'-dill') % generates an Adobe Illustrator file of the figure
+hgsave([hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_Distribution.fig'])
+if hmiconfig.printer==1, print; end % prints the figure to the default printer (if printer==1)
+
+% Figure 2 - Raw SI histogram of all category selective neurons
+figure; clf; cla; % selectivity index histograms
+set(gcf,'Units','Normalized','Position',[0.05 0.25 0.8 0.6])
+set(gca,'FontName','Arial','FontSize',8)
+subplot(2,3,1)
+% Extract Stewie's Data
+siS=extractRawSI(unit_indexS,unitdataS,5:19);
+siW=extractRawSI(unit_indexW,unitdataW,5:19);
+% Compile and generate figure
+dd=[siS siW]; hold on
+hist(dd,0:0.1:1)
+set(gca,'FontName','Arial','FontSize',8)
+xlabel({'Raw EXCITATORY SI','CatSelectiveNeurons'},'FontSize',8); ylabel('# Neurons','FontSize',8);
+text(0.6,80,['n=',num2str(length(dd))],'FontSize',7)
+text(0.6,100,['Avg: ',num2str(mean(dd)),' (',num2str(sem(dd),'%1.2g'),')'],'FontSize',7)
+ylim([0 200]); xlim([-0.2 1.2]); axis square
+title({'Average Raw SI (for Selective Neurons)','Excitatory Responses Only - Both Monkeys'},'FontWeight','Bold','FontSize',fontsize_med);
+subplot(2,3,4)
+siS=extractRawSI_inhibit(unit_indexS,unitdataS,5:19);
+siW=extractRawSI_inhibit(unit_indexW,unitdataW,5:19);
+% Compile and generate figure
+dd2=abs([siS siW]);
+hist(dd2,0:0.1:1)
+set(gca,'FontName','Arial','FontSize',8)
+xlabel({'Raw INHIBITED SI','CatSelectiveNeurons'},'FontSize',8); ylabel('# Neurons','FontSize',8);
+text(0.6,80,['n=',num2str(length(dd2))],'FontSize',7)
+text(0.6,100,['Avg: ',num2str(mean(dd2)),' (',num2str(sem(dd2),'%1.2g'),')'],'FontSize',7)
+[p,h]=ranksum(dd,dd2); text(0.6,140,['P=',num2str(p,'%1.2g')],'FontSize',7);
+ylim([0 200]); xlim([-0.2 1.2]); axis square
+title({'Average Raw SI (for Selective Neurons)','Inhibitory Responses Only - Both Monkeys'},'FontWeight','Bold','FontSize',fontsize_med);
+
+subplot(2,3,2)
+faceSI=[extractCatSI(unit_indexS,unitdataS,'Faces',1); extractCatSI(unit_indexW,unitdataW,'Faces',1)]; 
+fruitSI=[extractCatSI(unit_indexS,unitdataS,'Fruit',2); extractCatSI(unit_indexW,unitdataW,'Fruit',2)]; 
+placeSI=[extractCatSI(unit_indexS,unitdataS,'Places',3); extractCatSI(unit_indexW,unitdataW,'Places',3)]; 
+bpartSI=[extractCatSI(unit_indexS,unitdataS,'BodyParts',4); extractCatSI(unit_indexW,unitdataW,'BodyParts',4)]; 
+objectSI=[extractCatSI(unit_indexS,unitdataS,'Objects',5); extractCatSI(unit_indexW,unitdataW,'Objects',5)]; 
+hold on
+bar([mean(faceSI) mean(bpartSI) mean(fruitSI) mean(objectSI) mean(placeSI)])
+errorbar(1:5,[mean(faceSI) mean(bpartSI) mean(fruitSI) mean(objectSI) mean(placeSI)],[sem(faceSI) sem(bpartSI) sem(fruitSI) sem(objectSI) sem(placeSI)])
+set(gca,'FontName','Arial','FontSize',8,'XTick',1:5,'XTickLabel',{'Face','BPart','Fruit','Object','Place'})
+ylabel('Average Category SI','FontSize',8); ylim([0 0.5]); axis square
+text(1,.48,['n=',num2str(length(faceSI))],'FontSize',7)
+text(2,.48,['n=',num2str(length(bpartSI))],'FontSize',7)
+text(3,.48,['n=',num2str(length(fruitSI))],'FontSize',7)
+text(4,.48,['n=',num2str(length(objectSI))],'FontSize',7)
+text(5,.48,['n=',num2str(length(placeSI))],'FontSize',7)
+data=[faceSI;bpartSI;fruitSI;objectSI;placeSI];
+marker=[ones(size(faceSI));ones(size(bpartSI))*2;ones(size(fruitSI))*3;ones(size(objectSI))*4;ones(size(placeSI))*5];
+anova_excite_SI=anova1(data,marker);
+[p,h]=ranksum(faceSI,bpartSI); text(1.5,0.32,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+[p,h]=ranksum(bpartSI,fruitSI); text(2.5,0.32,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+[p,h]=ranksum(fruitSI,objectSI); text(3.5,0.32,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+[p,h]=ranksum(objectSI,placeSI); text(4.5,0.32,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+[p,h]=ranksum(faceSI,placeSI); text(3,0.35,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+title({'Category Selectivity of CatSelective Neurons)','Excitatory Responses - Both Monkeys'},'FontWeight','Bold','FontSize',fontsize_med); axis square;
+
+subplot(2,3,5)
+faceSI=[extractCatSI_inhibit(unit_indexS,unitdataS,'Faces',1); extractCatSI_inhibit(unit_indexW,unitdataW,'Faces',1)]; 
+fruitSI=[extractCatSI_inhibit(unit_indexS,unitdataS,'Fruit',2); extractCatSI_inhibit(unit_indexW,unitdataW,'Fruit',2)]; 
+placeSI=[extractCatSI_inhibit(unit_indexS,unitdataS,'Places',3); extractCatSI_inhibit(unit_indexW,unitdataW,'Places',3)]; 
+bpartSI=[extractCatSI_inhibit(unit_indexS,unitdataS,'BodyParts',4); extractCatSI_inhibit(unit_indexW,unitdataW,'BodyParts',4)]; 
+objectSI=[extractCatSI_inhibit(unit_indexS,unitdataS,'Objects',5); extractCatSI_inhibit(unit_indexW,unitdataW,'Objects',5)]; 
+hold on
+bar([mean(faceSI) mean(bpartSI) mean(fruitSI) mean(objectSI) mean(placeSI)])
+errorbar(1:5,[mean(faceSI) mean(bpartSI) mean(fruitSI) mean(objectSI) mean(placeSI)],[sem(faceSI) sem(bpartSI) sem(fruitSI) sem(objectSI) sem(placeSI)])
+set(gca,'FontName','Arial','FontSize',8,'XTick',1:5,'XTickLabel',{'Face','BPart','Fruit','Object','Place'})
+ylabel('Average Category SI','FontSize',8); ylim([-0.5 0]); axis square
+text(1,-.48,['n=',num2str(length(faceSI))],'FontSize',7)
+text(2,-.48,['n=',num2str(length(bpartSI))],'FontSize',7)
+text(3,-.48,['n=',num2str(length(fruitSI))],'FontSize',7)
+text(4,-.48,['n=',num2str(length(objectSI))],'FontSize',7)
+text(5,-.48,['n=',num2str(length(placeSI))],'FontSize',7)
+data=[faceSI;bpartSI;fruitSI;objectSI;placeSI];
+marker=[ones(size(faceSI));ones(size(bpartSI))*2;ones(size(fruitSI))*3;ones(size(objectSI))*4;ones(size(placeSI))*5];
+anova_inhibit_SI=anova1(data,marker);
+[p,h]=ranksum(faceSI,bpartSI); text(1.5,-0.32,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+[p,h]=ranksum(bpartSI,fruitSI); text(2.5,-0.32,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+[p,h]=ranksum(fruitSI,objectSI); text(3.5,-0.32,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+[p,h]=ranksum(objectSI,placeSI); text(4.5,-0.32,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+[p,h]=ranksum(faceSI,placeSI); text(3,-0.35,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+title({'Category Selectivity of CatSelective Neurons)','Inhibited Responses - Both Monkeys'},'FontWeight','Bold','FontSize',fontsize_med); axis square;
+
+subplot(2,3,3)
+antSI=[extractRawSI(unit_indexS,unitdataS,ant) extractRawSI(unit_indexW,unitdataW,ant)]; 
+midSI=[extractRawSI(unit_indexS,unitdataS,mid) extractRawSI(unit_indexW,unitdataW,mid)]; 
+postSI=[extractRawSI(unit_indexS,unitdataS,post) extractRawSI(unit_indexW,unitdataW,post)]; 
+hold on
+bar([mean(antSI) mean(midSI) mean(postSI)])
+errorbar(1:3,[mean(antSI) mean(midSI) mean(postSI)],[sem(antSI) sem(midSI) sem(postSI)])
+set(gca,'FontName','Arial','FontSize',8,'XTick',1:3,'XTickLabel',{'A19-A15','A14-A10','A9-A5'})
+ylabel('Average Raw SI','FontSize',8); ylim([0 0.5]); axis square
+text(1,.48,['n=',num2str(length(antSI))],'FontSize',7)
+text(2,.48,['n=',num2str(length(midSI))],'FontSize',7)
+text(3,.48,['n=',num2str(length(postSI))],'FontSize',7)
+[p,h]=ranksum(antSI,midSI); text(1.5,0.45,['p=',num2str(p,'%1.2g')],'FontSize',7)
+[p,h]=ranksum(midSI,postSI); text(2.5,0.45,['p=',num2str(p,'%1.2g')],'FontSize',7)
+title({'Raw SI vs AP Location (for Sensory+Excite/Both Neurons)','Both Monkeys'},'FontWeight','Bold','FontSize',fontsize_med); axis square;
+
+subplot(2,3,6)
+antSI=abs([extractRawSI_inhibit(unit_indexS,unitdataS,ant) extractRawSI_inhibit(unit_indexW,unitdataW,ant)]); 
+midSI=abs([extractRawSI_inhibit(unit_indexS,unitdataS,mid) extractRawSI_inhibit(unit_indexW,unitdataW,mid)]); 
+postSI=abs([extractRawSI_inhibit(unit_indexS,unitdataS,post) extractRawSI_inhibit(unit_indexW,unitdataW,post)]); 
+hold on
+bar([mean(antSI) mean(midSI) mean(postSI)])
+errorbar(1:3,[mean(antSI) mean(midSI) mean(postSI)],[sem(antSI) sem(midSI) sem(postSI)])
+set(gca,'FontName','Arial','FontSize',8,'XTick',1:3,'XTickLabel',{'A19-A15','A14-A10','A9-A5'})
+ylabel('Average Raw SI','FontSize',8); ylim([0 0.5]); axis square
+text(1,.48,['n=',num2str(length(antSI))],'FontSize',7)
+text(2,.48,['n=',num2str(length(midSI))],'FontSize',7)
+text(3,.48,['n=',num2str(length(postSI))],'FontSize',7)
+[p,h]=ranksum(antSI,midSI); text(1.5,0.45,['p=',num2str(p,'%1.2g')],'FontSize',7)
+[p,h]=ranksum(midSI,postSI); text(2.5,0.45,['p=',num2str(p,'%1.2g')],'FontSize',7)
+title({'Raw SI vs AP Location (for Sensory+Inhibit/Both Neurons)','Both Monkeys'},'FontWeight','Bold','FontSize',fontsize_med); axis square;
+
+
+jpgfigname=[hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_RawSI.jpg']; print(gcf,jpgfigname,'-djpeg') % generates an JPEG file of the figure
+illfigname=[hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_RawSI.ai']; print(gcf,illfigname,'-dill') % generates an Adobe Illustrator file of the figure
+hgsave([hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_RawSI.fig'])
+if hmiconfig.printer==1, print; end % prints the figure to the default printer (if printer==1)
+
+% % Figure 3 - Category SI histogram (for CatPreferring Neurons)
+% figure; clf; cla;
+% set(gcf,'Units','Normalized','Position',[0.05 0.25 0.8 0.6])
+% set(gca,'FontName','Arial','FontSize',8)
+% jpgfigname=[hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_CatSI.jpg']; print(gcf,jpgfigname,'-djpeg') % generates an JPEG file of the figure
+% illfigname=[hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_CatSI.ai']; print(gcf,illfigname,'-dill') % generates an Adobe Illustrator file of the figure
+% hgsave([hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_CatSI.fig'])
+% if hmiconfig.printer==1, print; end % prints the figure to the default printer (if printer==1)
+
+% Figure 4 - Stimulus Selectivity Figure
+figure; clf; cla; 
+set(gcf,'Units','Normalized','Position',[0.05 0.25 0.8 0.6])
+set(gca,'FontName','Arial','FontSize',8)
+subplot(1,2,1)
+stimS=extractStimSelect(dataS,5:19); stimW=extractStimSelect(dataW,5:19);
+stimB=stimS+stimW;
+bar(stimB(:,2:3),'stack')
+tmp=sum(stimB); tmpprc=tmp(2)/tmp(1); stimB(:,4)=stimB(:,1)*tmpprc;
+[p,h]=chi2_test(stimB(:,2),stimB(:,4));
+for c=1:5, text(c,stimB(c,1)+5,[num2str(stimB(c,2)/stimB(c,1)*100,'%1.2g'),'%'],'FontSize',7); end
+set(gca,'XTick',1:5,'XTickLabel',{'F','Ft','P','Bp','O'}); axis square
+legend('StimS','StimNS','Location','SouthEast'); ylabel('Number of Neurons')
+title({'Within Category Selectivity (per category)',['Both Monkeys (ChiSquare: p=',num2str(p,'%1.2g'),')']},'FontWeight','Bold')
+subplot(1,2,2)
+antStim=extractStimSelect(dataS,ant)+extractStimSelect(dataW,ant); 
+midStim=extractStimSelect(dataS,mid)+extractStimSelect(dataW,mid); 
+postStim=extractStimSelect(dataS,post)+extractStimSelect(dataW,post);
+hold on
+bar([mean(antStim(:,4)) mean(midStim(:,4)) mean(postStim(:,4))])
+errorbar(1:3,[mean(antStim(:,4)) mean(midStim(:,4)) mean(postStim(:,4))],[sem(antStim(:,4)) sem(midStim(:,4)) sem(postStim(:,4))])
+set(gca,'FontName','Arial','FontSize',8,'XTick',1:3,'XTickLabel',{'A19-A15','A14-A10','A9-A5'})
+ylabel('Average % StimSelective Neurons','FontSize',8); ylim([0 75]); axis square
+text(1,58,['n=',num2str(sum(antStim(:,1)))],'FontSize',7)
+text(2,58,['n=',num2str(sum(midStim(:,1)))],'FontSize',7)
+text(3,58,['n=',num2str(sum(postStim(:,1)))],'FontSize',7)
+title({'Proportion of StimSelective Neurons (for given category)','Both Monkeys'},'FontWeight','Bold','FontSize',fontsize_med); axis square;
+jpgfigname=[hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_StimSelect.jpg']; print(gcf,jpgfigname,'-djpeg') % generates an JPEG file of the figure
+illfigname=[hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_StimSelect.ai']; print(gcf,illfigname,'-dill') % generates an Adobe Illustrator file of the figure
+hgsave([hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_RawSI.fig'])
+if hmiconfig.printer==1, print; end % prints the figure to the default printer (if printer==1)
+
+% Figure 5 - Category Proportion and Selectivity for Both Monkeys for each Category
+figure; clf; cla; 
+set(gcf,'Units','Normalized','Position',[0.05 0.15 0.9 0.8])
+set(gca,'FontName','Arial','FontSize',8)
+catnames={'Face','Fruit','Place','Bodypart','Object'};
+for cc=1:5, % once per category
+    subplot(3,5,cc)
+    [ansS,ancS,apropS]=extractCatProp(dataS,ant,cc); [ansW,ancW,apropW]=extractCatProp(dataW,ant,cc);
+    [mnsS,mncS,mpropS]=extractCatProp(dataS,mid,cc); [mnsW,mncW,mpropW]=extractCatProp(dataW,mid,cc);
+    [pnsS,pncS,ppropS]=extractCatProp(dataS,post,cc); [pnsW,pncW,ppropW]=extractCatProp(dataW,post,cc);
+    antprop=((ancS+ancW)/(ansS+ansW))*100;
+    midprop=((mncS+mncW)/(mnsS+mnsW))*100;
+    postprop=((pncS+pncW)/(pnsS+pnsW))*100;
+    bar([antprop midprop postprop]);
+    x2=chi2_test([antprop midprop postprop],[33.3 33.3 33.3]);
+    set(gca,'FontName','Arial','FontSize',7,'XTick',1:3,'XTickLabel',{'A19-A15','A14-A10','A9-A5'})
+    ylabel('Average % CatPref Neurons','FontSize',8); ylim([0 50]); axis square
+    title([char(catnames(cc)),'-selective Neurons'],'FontSize',7,'FontWeight','Bold')
+    text(2,45,['p(X2)=',num2str(x2,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+    text(1,40,['n=',num2str([ansS+ansW])],'FontSize',7,'HorizontalAlignment','Center')
+    text(2,40,['n=',num2str([mnsS+mnsW])],'FontSize',7,'HorizontalAlignment','Center')
+    text(3,40,['n=',num2str([pnsS+pnsW])],'FontSize',7,'HorizontalAlignment','Center')
+end
+catnames={'Faces','Fruit','Places','BodyParts','Objects'};
+for cc=1:5, % category selectivity of CategoryPreferringNeurons
+    subplot(3,5,cc+5)
+    SIant=[extractCatSI_AP(unit_indexS,unitdataS,catnames(cc),cc,ant); extractCatSI_AP(unit_indexW,unitdataW,catnames(cc),cc,ant)]; 
+    SImid=[extractCatSI_AP(unit_indexS,unitdataS,catnames(cc),cc,mid); extractCatSI_AP(unit_indexW,unitdataW,catnames(cc),cc,mid)]; 
+    SIpost=[extractCatSI_AP(unit_indexS,unitdataS,catnames(cc),cc,post); extractCatSI_AP(unit_indexW,unitdataW,catnames(cc),cc,post)]; 
+    hold on
+    bar([mean(SIant) mean(SImid) mean(SIpost)])
+    errorbar(1:3,[mean(SIant) mean(SImid) mean(SIpost)],[sem(SIant) sem(SImid) sem(SIpost)])
+    set(gca,'FontName','Arial','FontSize',8,'XTick',1:3,'XTickLabel',{'A19-A15','A14-A10','A9-A5'})
+    ylabel('Average CatSI','FontSize',8); ylim([0 .5]); axis square
+    text(1,.38,['n=',num2str(length(SIant))],'FontSize',7,'HorizontalAlignment','Center')
+    text(2,.38,['n=',num2str(length(SImid))],'FontSize',7,'HorizontalAlignment','Center')
+    text(3,.38,['n=',num2str(length(SIpost))],'FontSize',7,'HorizontalAlignment','Center')
+    title({[char(catnames(cc)),'-Selectivity (CatPref Neurons)'],'Both Monkeys'},'FontWeight','Bold','FontSize',7);    
+    [p,h]=ranksum(SIant,SImid); text(1.5,0.44,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+    [p,h]=ranksum(SImid,SIpost); text(2.5,0.44,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+    [p,h]=ranksum(SIant,SIpost); text(2,0.48,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+end
+for cc=1:5, % category selectivity of ALL neurons
+    subplot(3,5,cc+10)
+    SIant=[extractCatSI_APall(unit_indexS,unitdataS,catnames(cc),cc,ant); extractCatSI_APall(unit_indexW,unitdataW,catnames(cc),cc,ant)]; 
+    SImid=[extractCatSI_APall(unit_indexS,unitdataS,catnames(cc),cc,mid); extractCatSI_APall(unit_indexW,unitdataW,catnames(cc),cc,mid)]; 
+    SIpost=[extractCatSI_APall(unit_indexS,unitdataS,catnames(cc),cc,post); extractCatSI_APall(unit_indexW,unitdataW,catnames(cc),cc,post)]; 
+    hold on
+    bar([mean(SIant) mean(SImid) mean(SIpost)])
+    errorbar(1:3,[mean(SIant) mean(SImid) mean(SIpost)],[sem(SIant) sem(SImid) sem(SIpost)])
+    set(gca,'FontName','Arial','FontSize',8,'XTick',1:3,'XTickLabel',{'A19-A15','A14-A10','A9-A5'})
+    ylabel('Average CatSI','FontSize',8); ylim([-0.15 .15]); axis square
+    text(1,-.14,['n=',num2str(length(SIant))],'FontSize',7,'HorizontalAlignment','Center')
+    text(2,-.14,['n=',num2str(length(SImid))],'FontSize',7,'HorizontalAlignment','Center')
+    text(3,-.14,['n=',num2str(length(SIpost))],'FontSize',7,'HorizontalAlignment','Center')
+    title({[char(catnames(cc)),'-Selectivity (All Neurons)'],'Both Monkeys'},'FontWeight','Bold','FontSize',7);    
+    [p,h]=ranksum(SIant,SImid); text(1.5,0.1,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+    [p,h]=ranksum(SImid,SIpost); text(2.5,0.1,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+    [p,h]=ranksum(SIant,SIpost); text(2,0.12,['p=',num2str(p,'%1.2g')],'FontSize',7,'HorizontalAlignment','Center')
+end
+jpgfigname=[hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_CatAP.jpg']; print(gcf,jpgfigname,'-djpeg') % generates an JPEG file of the figure
+illfigname=[hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_CatAP.ai']; print(gcf,illfigname,'-dill') % generates an Adobe Illustrator file of the figure
+hgsave([hmiconfig.rootdir,'rsvp500_project1',filesep,'RSVP_Project1Pop_CatAP.fig'])
+if hmiconfig.printer==1, print; end % prints the figure to the default printer (if printer==1)
+return
+
+function output=extractRawSI(uindex,udata,APrange);
+pointer1=find(strcmp(uindex.SensoryConf,'Sensory')==1);
+pointer2=find(ismember(uindex.ExciteConf,{'Excite' 'Both'})==1);
+pointer3=find(ismember(uindex.APcoords(:,1),APrange)==1);
+pointer4=find(strcmp(uindex.SelectiveConf,'Selective')==1);
+pointerT1=intersect(pointer1,pointer2); pointerT2=intersect(pointer3,pointer4);
+pointer=intersect(pointerT1,pointerT2);
+output=udata.raw_si(pointer);
+return
+
+function output=extractRawSI_inhibit(uindex,udata,APrange);
+pointer1=find(strcmp(uindex.SensoryConf,'Sensory')==1);
+pointer2=find(ismember(uindex.ExciteConf,{'Inhibit' 'Both'})==1);
+pointer3=find(ismember(uindex.APcoords(:,1),APrange)==1);
+pointer4=find(strcmp(uindex.SelectiveConf,'Selective')==1);
+pointerT1=intersect(pointer1,pointer2); pointerT2=intersect(pointer3,pointer4);
+pointer=intersect(pointerT1,pointerT2);
+output=udata.inhibit_rawsi(pointer);
+return
+
+function output=extractCatSI(uindex,udata,catname,catcol);
+pointer1=find(strcmp(uindex.SensoryConf,'Sensory')==1);
+pointer2=find(ismember(uindex.ExciteConf,{'Excite' 'Both'})==1);
+pointer3=find(ismember(uindex.CategoryConf,catname)==1);
+pointer4=find(strcmp(uindex.SelectiveConf,'Selective')==1);
+pointerT1=intersect(pointer1,pointer2); pointerT2=intersect(pointer3,pointer4);
+pointer=intersect(pointerT1,pointerT2);
+output=udata.cat_si(pointer,catcol);
+return
+
+function output=extractCatSI_inhibit(uindex,udata,catname,catcol);
+pointer1=find(strcmp(uindex.SensoryConf,'Sensory')==1);
+pointer2=find(ismember(uindex.ExciteConf,{'Inhibit' 'Both'})==1);
+pointer3=find(ismember(uindex.pref_inhibit,catname)==1);
+pointer4=find(strcmp(uindex.SelectiveConf,'Selective')==1);
+pointerT1=intersect(pointer1,pointer2); pointerT2=intersect(pointer3,pointer4);
+pointer=intersect(pointerT1,pointerT2);
+output=udata.cat_si(pointer,catcol);
+return
+
+function bardata=extractStimSelect(data,APrange);
+bardata=zeros(5,2); numgrids=size(data,2);
+for g=1:numgrids,
+    if ismember(data(g).grid_coords(1,1),APrange)==1,
+        for c=1:5,
+            bardata(c,1)=bardata(c,1)+data(g).counts(c);
+            bardata(c,2)=bardata(c,2)+data(g).within_counts(c);
+        end
+    end
+end
+bardata(:,3)=bardata(:,1)-bardata(:,2);
+bardata(:,4)=bardata(:,2) ./ bardata(:,1) * 100;
+return
+
+function [numsensory,numcat,output]=extractCatProp(data,APrange,catcol); % output will be multiple values (1/gridloc)
+numgrids=size(data,2); numsensory=0; numcat=0;
+for gg=1:numgrids,
+    if ismember(data(gg).grid_coords(1,1),APrange)==1,
+        numsensory=numsensory+data(gg).numsensory;
+        numcat=numcat+data(gg).counts(catcol);
+    end
+end
+output=numcat/numsensory;
+return
+
+function output=extractCatSI_AP(uindex,udata,catname,catcol,APrange)
+pointer1=find(strcmp(uindex.SensoryConf,'Sensory')==1);
+pointer2=find(ismember(uindex.ExciteConf,{'Excite' 'Both'})==1);
+pointer3=find(ismember(uindex.CategoryConf,catname)==1);
+pointer4=find(ismember(uindex.APcoords(:,1),APrange)==1);
+pointer5=find(strcmp(uindex.SelectiveConf,'Selective')==1);
+pointerT1=intersect(pointer1,pointer2); pointerT2=intersect(pointer3,pointer4);
+pointerT3=intersect(pointerT1,pointerT2);
+pointer=intersect(pointerT3,pointer5);
+output=udata.cat_si(pointer,catcol);
+return
+
+function output=extractCatSI_APall(uindex,udata,catname,catcol,APrange)
+pointer1=find(strcmp(uindex.SensoryConf,'Sensory')==1);
+pointer2=find(ismember(uindex.ExciteConf,{'Excite' 'Both'})==1);
+pointer3=find(ismember(uindex.APcoords(:,1),APrange)==1);
+pointer4=find(strcmp(uindex.SelectiveConf,'Selective')==1);
+pointerT1=intersect(pointer1,pointer2); pointerT2=intersect(pointer3,pointer4);
+pointer=intersect(pointerT1,pointerT2);
+output=udata.cat_si(pointer,catcol);
+return

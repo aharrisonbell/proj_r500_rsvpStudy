@@ -1,0 +1,386 @@
+function [data,numgrids,counts_matrix,allunits,unit_index,unitdata]=plx500_prepprojectdata(hmiconfig,sheetname);
+%%% LOAD UNIT IDENTIFYING INFORMATION FROM EXCEL AND PREPARE "FILES" MATRIX
+junk=find(hmiconfig.excelfile==filesep);
+excelname=hmiconfig.excelfile(junk(end)+1:end);
+disp(['Scanning ',excelname,'(',sheetname,')'])
+[allunits,unit_index]=plx_loadfileinfo(hmiconfig,sheetname);
+numunits=size(allunits,2);
+disp(['..found ',num2str(numunits),' units'])
+disp('..creating new unit names...')
+for un=1:numunits,
+    junk=char(allunits(un).PlxFile);
+    allunits(un).NewUnitName=[junk(1:end-4),'-',char(allunits(un).UnitName)];
+end
+disp('Done.')
+disp(' ')
+
+%%% CONVERT GRIDLOCATION TO AP COORDINATES
+for uu=1:length(unit_index.GridLoc),
+    unit_index.APcoords(uu,:)=plx_convertgrid2ap(unit_index.GridLoc(uu));
+end
+
+%%% COUNT GRID LOCATIONS/NEURONS
+numunits=size(allunits,2); grids=unique(unit_index.GridLoc); numgrids=length(grids);
+counts_matrix=plx_prepcountsmatrix(unit_index);
+
+%%% LOAD ACTUAL INDIVIDUAL UNIT DATA
+data=[]; data.cat_si=[]; data.cat_si_nobase=[]; data.face_trad=[]; data.anovas_group=[];
+% Specify fields to import
+unitdata.raw_si=[]; unitdata.cat_si=[];
+
+% Create unitdata matrix
+tic
+for un=1:size(allunits,2),
+    load([hmiconfig.rsvp500spks,allunits(un).NewUnitName,'-500responsedata.mat']); % load unit data
+    %unitdata.newunitname(un)=allunits(un).NewUnitName;
+    unitdata.raw_si(un)=respstructsingle.raw_si(2);
+    unitdata.excite_rawsi(un)=respstructsingle.excite_rawsi;
+    unitdata.inhibit_rawsi(un)=respstructsingle.inhibit_rawsi;
+    unitdata.pref_excite{un}=respstructsingle.pref_excite;
+    unitdata.pref_inhibit{un}=respstructsingle.pref_inhibit;
+    unitdata.cat_si(un,:)=respstructsingle.cat_si(:,2)';
+    unitdata.stimresponse(un,:)=respstructsingle.m_epoch1;
+    unitdata.baseline(un,:)=respstructsingle.m_baseline;
+    unitdata.cat_avg(un,:)=respstructsingle.cat_avg(:,2)';
+    unitdata.roc_analysis(un,:)=reshape(respstructsingle.roc_analysis',1,25);
+    unitdata.latency(un,:)=respstructsingle.latency([1:20 61:80 ';
+    for rr=1:25, % correct ROC values
+        if unitdata.roc_analysis(un,rr)<0.5, unitdata.roc_analysis(un,rr)=1-unitdata.roc_analysis(un,rr); end
+    end
+    unitdata.wf_type(un)=respstructsingle.wf_type;
+    unitdata.wf_include(un)=respstructsingle.wf_include;
+    unitdata.wf_params(un,:)=respstructsingle.wf_params;
+    unitdata.excite_rawsi_nofruit(un)=respstructsingle.excite_rawsi_nofruit;
+    unitdata.inhibit_rawsi_nofruit(un)=respstructsingle.inhibit_rawsi_nofruit;
+    unitdata.cat_si_nofruit(un,:)=respstructsingle.cat_si_nofruit;
+    unitdata.APcoords(un,:)=respstructsingle.APcoords;
+    unitdata.AFNIcoords(un,:)=respstructsingle.AFNIcoords;
+    unitdata.FMRIdat_coords(un,:)=respstructsingle.FMRIdat_coords;
+    unitdata.AFNItimeseries(un,:)=respstructsingle.AFNItimeseries;
+    unitdata.fmri_rsp(un,:)=respstructsingle.fmri_rsp;
+    unitdata.fmri_catsi(un,:)=respstructsingle.fmri_catsi;
+    unitdata.fmri_excite_rawsi(un)=respstructsingle.fmri_excite_rawsi;
+    unitdata.fmri_inhibit_rawsi(un)=respstructsingle.fmri_inhibit_rawsi;
+    unitdata.excitetype_nofruit{un}=respstructsingle.excitetype_nofruit;
+    unitdata.prefcat_excite_nofruit{un}=respstructsingle.prefcat_excite_nofruit;
+    unitdata.prefcat_inhibit_nofruit{un}=respstructsingle.prefcat_inhibit_nofruit;
+    unitdata.face_trad_nofruit(un)=respstructsingle.face_trad_nofruit;
+    unitdata.selective_nofruit{un}=respstructsingle.selective_nofruit;
+    unitdata.stats_rsp_matrix_avg(un,:)=reshape(respstructsingle.stats_rsp_matrix_avg,25,1);
+    unitdata.stats_rsp_matrix_trial(un,:)=reshape(respstructsingle.stats_rsp_matrix_trial,25,1);    
+    unitdata.stats_prefexcite_v_others_nofruit(un)=respstructsingle.stats_prefexcite_v_others_nofruit;
+    unitdata.stats_prefinhibit_v_others_nofruit(un)=respstructsingle.stats_prefinhibit_v_others_nofruit;
+    unitdata.norm_cat_avg(un,:)=respstructsingle.norm_cat_avg';
+    unitdata.anova_within_group(un,:)=respstructsingle.anova_within_group(:,:,2)';
+    temproc=reshape(respstructsingle.roc_analysis,1,25);
+    for rr=1:25, if temproc(rr)<0.5, temproc(rr)=1-temproc(rr); end; end % correct ROC values
+    unitdata.roc_analysis(un,:)=temproc;
+    %unitdata.LFP_trial_epoch=respstructsingle.LFP_trial_epoch;
+    %unitdata.LFP_trial_epoch_rect=respstructsingle.LFP_trial_epoch_rect;
+    try
+        unitdata.LFP_lfp_average_epoch_rect(un,:)=respstructsingle.LFP_lfp_average_epoch_rect;
+        unitdata.LFP_cat_avg_epoch_tr(un,:)=respstructsingle.LFP_cat_avg_epoch_tr;
+        unitdata.LFP_cat_avg_rect_epoch(un,:)=respstructsingle.LFP_cat_avg_rect_epoch;
+        %unitdata.LFP_cat_avg_rect_epoch_tr=respstructsingle.LFP_cat_avg_rect_epoch_tr;
+        %unitdata.LFP_anova_stim=respstructsingle.LFP_anova_stim;
+        unitdata.LFP_bestlabel(un)=respstructsingle.LFP_bestlabel;
+        unitdata.LFP_cat_anova_rect(un,:)=respstructsingle.LFP_cat_anova_rect;
+        unitdata.LFP_evoked_cat_si(un,:)=respstructsingle.LFP_evoked_cat_si;
+ %       unitdata.LFP_evokedpure_cat_si(un,:)=respstructsingle.LFP_evokedpure_cat_si;
+        unitdata.LFP_freq_epoch_cat(un,:)=reshape(respstructsingle.LFP_freq_epoch_cat,1,24);
+        %unitdata.LFP_freq_within_anova=respstructsingle.LFP_freq_within_anova;
+        unitdata.LFP_freq_bestlabel(un,:)=respstructsingle.LFP_freq_bestlabel;
+        unitdata.LFP_freq_across_anova(un,:)=respstructsingle.LFP_freq_across_anova;
+        unitdata.LFP_freq_cat_si(un,:)=reshape(respstructsingle.LFP_freq_cat_si,1,24);
+        %unitdata.LFP_tr_min_max=respstructsingle.LFP_tr_min_max;
+        %unitdata.LFP_cond_min_max=respstructsingle.LFP_cond_min_max;
+        %unitdata.LFP_cat_min_max=respstructsingle.LFP_cat_min_max;
+        unitdata.LFP_stats_pref_v_others_evoked(un)=respstructsingle.LFP_stats_pref_v_others_evoked;
+        unitdata.LFP_stats_pref_v_others_0_120Hz(un)=respstructsingle.LFP_stats_pref_v_others_0_120Hz;
+        unitdata.LFP_stats_pref_v_others_0_20Hz(un)=respstructsingle.LFP_stats_pref_v_others_0_20Hz;
+    catch
+        unitdata.LFP_lfp_average_epoch_rect(un,:)=respstructsingle.LFP_lfp_average_epoch_rect;
+        unitdata.LFP_cat_avg_epoch_tr(un,:)=respstructsingle.LFP_cat_avg_epoch_tr;
+        unitdata.LFP_cat_avg_rect_epoch(un,:)=respstructsingle.LFP_cat_avg_rect_epoch;
+        %unitdata.LFP_cat_avg_rect_epoch_tr=respstructsingle.LFP_cat_avg_rect_epoch_tr;
+        %unitdata.LFP_anova_stim=respstructsingle.LFP_anova_stim;
+        unitdata.LFP_bestlabel(un)=respstructsingle.LFP_bestlabel;
+        unitdata.LFP_cat_anova_rect(un,:)=respstructsingle.LFP_cat_anova_rect;
+        unitdata.LFP_evoked_cat_si(un,:)=respstructsingle.LFP_evoked_cat_si;
+%        unitdata.LFP_evokedpure_cat_si(un,:)=respstructsingle.LFP_evokedpure_cat_si;
+        unitdata.LFP_freq_epoch_cat(un,:)=reshape(respstructsingle.LFP_freq_epoch_cat,1,24);
+        %unitdata.LFP_freq_within_anova=respstructsingle.LFP_freq_within_anova;
+        unitdata.LFP_freq_bestlabel(un,:)=respstructsingle.LFP_freq_bestlabel;
+        unitdata.LFP_freq_across_anova(un,:)=respstructsingle.LFP_freq_across_anova;
+        unitdata.LFP_freq_cat_si(un,:)=reshape(respstructsingle.LFP_freq_cat_si,1,24);
+        %unitdata.LFP_tr_min_max=respstructsingle.LFP_tr_min_max;
+        %unitdata.LFP_cond_min_max=respstructsingle.LFP_cond_min_max;
+        %unitdata.LFP_cat_min_max=respstructsingle.LFP_cat_min_max;
+        unitdata.LFP_stats_pref_v_others_evoked(un)=respstructsingle.LFP_stats_pref_v_others_evoked;
+        unitdata.LFP_stats_pref_v_others_0_120Hz(un)=respstructsingle.LFP_stats_pref_v_others_0_120Hz;
+        unitdata.LFP_stats_pref_v_others_0_20Hz(un)=respstructsingle.LFP_stats_pref_v_others_0_20Hz;
+    end
+    % INSERT NEW FIELDS AS NEEDED...
+end
+toc
+
+% Paste fields from unitdata into unit_index (aids later analysis)
+unit_index.selective_nofruit=unitdata.selective_nofruit';
+unit_index.excitetype_nofruit=unitdata.excitetype_nofruit';
+unit_index.prefcat_excite_nofruit=unitdata.prefcat_excite_nofruit';
+unit_index.prefcat_inhibit_nofruit=unitdata.prefcat_inhibit_nofruit';
+unit_index.stats_prefexcite_v_others_nofruit=unitdata.stats_prefexcite_v_others_nofruit;
+unit_index.stats_prefinhibit_v_others_nofruit=unitdata.stats_prefinhibit_v_others_nofruit;
+
+% Organize according to Grid Location
+tic
+for g=1:numgrids,
+    data(g).grid_coords=plx_convertgrid2ap(grids(g)); % convert grid location to A/P coordindates
+    data(g).gridloc=grids(g);
+    gridind=find(strcmp(unit_index.GridLoc,grids(g))==1); % find all neurons for particular grid location
+    numunits_grid=length(gridind);
+    %%% Initialize Matrices
+    % Misc
+    data(g).APcoords=[]; data(g).AFNIcoords=[]; data(g).anovas_group=[]; data(g).roc_analysis=[]; data(g).numsensory=0; 
+    data(g).face_trad=0; data(g).face_trad_nofruit=0; 
+    data(g).excite_mat=zeros(numunits_grid,1); 
+    % Neuron Characteristics (no fruit)
+    data(g).excitetype_nofruit=[]; data(g).selective_nofruit=[]; data(g).prefcat_nofruit=[]; 
+    % Response Magnitudes
+    data(g).cat_avg=[]; data(g).stimresponse=[]; 
+    % Selectivity
+    data(g).raw_si=[]; data(g).cat_si=[]; data(g).cat_si_nobase=[]; data(g).pure_si=[];
+    data(g).cat_si_nofruit=[];    
+    data(g).excite_rawsi=[]; data(g).inhibit_rawsi=[];    
+    data(g).excite_rawsi_nofruit=[]; data(g).inhibit_rawsi_nofruit=[]; 
+    % Counts
+    data(g).countsmat=zeros(numunits_grid,5); data(g).countsmatI=zeros(numunits_grid,5); data(g).countsmatB=zeros(numunits_grid,5);
+    data(g).countsmat_nofruit=zeros(numunits_grid,4); data(g).countsmatI_nofruit=zeros(numunits_grid,4); data(g).countsmatB_nofruit=zeros(numunits_grid,4);
+    data(g).counts=[0 0 0 0 0]; data(g).countsI=[0 0 0 0 0]; 
+    data(g).counts_nofruit=[0 0 0 0]; data(g).countsI_nofruit=[0 0 0 0]; 
+    data(g).within_counts=zeros(1,5); data(g).within_countsI=zeros(1,5);
+    data(g).within_counts_nofruit=zeros(1,4); data(g).within_countsI_nofruit=zeros(1,4);
+    data(g).count_selective=[0 0]; data(g).sensory_mat=zeros(numunits_grid,1); data(g).selective_mat=zeros(numunits_grid,1); 
+    data(g).count_resptype=[0 0 0 0]; data(g).stimselect=0;
+    % Statistics
+    data(g).stats_rsp_matrix_avg=[]; 
+    data(g).stats_rsp_matrix_trial=[]; 
+    data(g).stats_prefexcite_v_others_nofruit=[];
+    data(g).stats_prefinhibit_v_others_nofruit=[];
+    % Waveform Parameters
+    data(g).wf_type=[]; data(g).wf_include=[]; data(g).wf_params=[];
+    % fMRI Data
+    data(g).FMRIdat_coords=[]; data(g).AFNItimeseries=[]; 
+    data(g).fmri_rsp=[]; data(g).fmri_catsi=[]; data(g).fmri_excite_rawsi=[]; data(g).fmri_inhibit_rawsi=[];
+    % LFP Data
+    data(g).LFP_lfp_average_epoch_rect=[]; data(g).LFP_cat_avg_rect_epoch=[]; data(g).LFP_bestlabel=[];
+    data(g).LFP_cat_anova_rect=[]; data(g).LFP_evoked_cat_si=[]; data(g).LFP_freq_epoch_cat=[];
+    data(g).LFP_freq_bestlabel=[]; data(g).LFP_freq_across_anova=[]; data(g).LFP_freq_cat_si=[];
+    data(g).LFP_stats_pref_v_others_evoked=[]; data(g).LFP_stats_pref_v_others_0_120Hz=[]; data(g).LFP_stats_pref_v_others_0_20Hz=[];
+    data(g).LFP_cat_avg_epoch_tr=[]; data(g).LFP_evokedpure_cat_si=[];
+    
+    % Per Unit Measures
+    for un=1:numunits_grid,
+        load([hmiconfig.rsvp500spks,allunits(gridind(un)).NewUnitName,'-500responsedata.mat']); % load unit data
+        data(g).cat_si=[data(g).cat_si;respstructsingle.cat_si(1:6,2)']; % concatenate selectivity indices
+        data(g).cat_si_nobase=[data(g).cat_si_nobase;respstructsingle.cat_si_nobase(1:6,2)']; % concatenate selectivity indices (no baseline)
+        data(g).raw_si=[data(g).raw_si;respstructsingle.raw_si(2)];
+        data(g).excite_rawsi=[data(g).excite_rawsi;respstructsingle.excite_rawsi];
+        data(g).inhibit_rawsi=[data(g).inhibit_rawsi;respstructsingle.inhibit_rawsi];
+        data(g).stimresponse=[data(g).stimresponse;respstructsingle.m_epoch1];
+        data(g).pure_si=[data(g).pure_si;reshape(respstructsingle.pure_si',1,25)];
+        data(g).cat_avg=[data(g).cat_avg;respstructsingle.cat_avg(:,2)'];
+        temproc=reshape(respstructsingle.roc_analysis,1,25);
+        for rr=1:25, if temproc(rr)<0.5, temproc(rr)=1-temproc(rr); end; end % correct ROC values
+        data(g).roc_analysis=[data(g).roc_analysis;temproc];
+        data(g).face_trad=data(g).face_trad+respstructsingle.face_trad; % count "traditional" face selective neurons
+        temp=respstructsingle.anova_within_group(:,:,2);
+        data(g).anovas_group=[data(g).anovas_group;temp']; % concatenate within group anovas (for testing stimulus selectivity)
+        data(g).wf_type=[data(g).wf_type;respstructsingle.wf_type];
+        data(g).wf_include=[data(g).wf_include;respstructsingle.wf_include];
+        data(g).wf_params=[data(g).wf_params;respstructsingle.wf_params];
+        
+        %% Neuron Counts
+        if strcmp(respstructsingle.conf_neurtype,'Sensory')==1, % count number of sensory neurons
+            data(g).sensory_mat(un,1)=1; data(g).numsensory=data(g).numsensory+1;
+        end
+        if strcmp(respstructsingle.selective_nofruit,'Selective')==1, % count number of category selective neurons
+            data(g).count_selective(1)=data(g).count_selective(1)+1; data(g).selective_mat(un,1)=1;
+        else data(g).count_selective(2)=data(g).count_selective(2)+1;
+        end
+        if strcmp(respstructsingle.excitetype_nofruit,'Excite')==1,data(g).count_resptype(1)=data(g).count_resptype(1)+1; data(g).excite_mat(un,1)=1;
+        elseif strcmp(respstructsingle.excitetype_nofruit,'Both')==1, data(g).count_resptype(2)=data(g).count_resptype(2)+1; data(g).excite_mat(un,1)=2;
+        elseif strcmp(respstructsingle.excitetype_nofruit,'Inhibit')==1, data(g).count_resptype(3)=data(g).count_resptype(3)+1; data(g).excite_mat(un,1)=3;
+        else data(g).count_resptype(4)=data(g).count_resptype(4)+1; end
+
+        %%% EXCITATORY PREFERENCES (with Fruit)
+        if strcmp(respstructsingle.pref_excite,'Faces')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).counts(1)=data(g).counts(1)+1; data(g).countsmat(un,1)=data(g).countsmat(un,1)+1; data(g).countsmatB(un,1)=1;
+            if temp(1)<0.05, data(g).within_counts(1)=data(g).within_counts(1)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        if strcmp(respstructsingle.pref_excite,'Fruit')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).counts(2)=data(g).counts(2)+1; data(g).countsmat(un,2)=data(g).countsmat(un,2)+1; data(g).countsmatB(un,2)=1;
+            if temp(2)<0.05, data(g).within_counts(2)=data(g).within_counts(2)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        if strcmp(respstructsingle.pref_excite,'Places')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).counts(3)=data(g).counts(3)+1; data(g).countsmat(un,3)=data(g).countsmat(un,3)+1; data(g).countsmatB(un,3)=1;
+            if temp(3)<0.05, data(g).within_counts(3)=data(g).within_counts(3)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        if strcmp(respstructsingle.pref_excite,'BodyParts')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).counts(4)=data(g).counts(4)+1; data(g).countsmat(un,4)=data(g).countsmat(un,4)+1; data(g).countsmatB(un,4)=1;
+            if temp(4)<0.05, data(g).within_counts(4)=data(g).within_counts(4)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        if strcmp(respstructsingle.pref_excite,'Objects')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).counts(5)=data(g).counts(5)+1; data(g).countsmat(un,5)=data(g).countsmat(un,5)+1; data(g).countsmatB(un,5)=1;
+            if temp(5)<0.05, data(g).within_counts(5)=data(g).within_counts(5)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        %%% INHIBITORY PREFERENCES (with Fruit)
+        if strcmp(respstructsingle.pref_inhibit,'Faces')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).countsI(1)=data(g).countsI(1)+1; data(g).countsmatI(un,1)=data(g).countsmatI(un,1)+1; data(g).countsmatB(un,1)=1;            
+            if temp(1)<0.05, data(g).within_countsI(1)=data(g).within_countsI(1)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        if strcmp(respstructsingle.pref_inhibit,'Fruit')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).countsI(2)=data(g).countsI(2)+1; data(g).countsmatI(un,2)=data(g).countsmatI(un,2)+1; data(g).countsmatB(un,2)=1;            
+            if temp(2)<0.05, data(g).within_countsI(2)=data(g).within_countsI(2)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        if strcmp(respstructsingle.pref_inhibit,'Places')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).countsI(3)=data(g).countsI(3)+1; data(g).countsmatI(un,3)=data(g).countsmatI(un,3)+1; data(g).countsmatB(un,3)=1;
+            if temp(3)<0.05, data(g).within_countsI(3)=data(g).within_countsI(3)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        if strcmp(respstructsingle.pref_inhibit,'BodyParts')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).countsI(4)=data(g).countsI(4)+1; data(g).countsmatI(un,4)=data(g).countsmatI(un,4)+1; data(g).countsmatB(un,4)=1;
+            if temp(4)<0.05, data(g).within_countsI(4)=data(g).within_countsI(4)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        if strcmp(respstructsingle.pref_inhibit,'Objects')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).countsI(5)=data(g).countsI(5)+1; data(g).countsmatI(un,5)=data(g).countsmatI(un,5)+1; data(g).countsmatB(un,5)=1;
+            if temp(5)<0.05, data(g).within_countsI(5)=data(g).within_countsI(5)+1; end % if anova for within cat is <0.05, increment 1
+        end
+ 
+        %%% EXCITATORY PREFERENCES (No Fruit)
+        if strcmp(respstructsingle.prefcat_excite_nofruit,'Faces')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).counts_nofruit(1)=data(g).counts_nofruit(1)+1; data(g).countsmat_nofruit(un,1)=data(g).countsmat_nofruit(un,1)+1; data(g).countsmatB_nofruit(un,1)=1;
+            if temp(1)<0.05, data(g).within_counts_nofruit(1)=data(g).within_counts_nofruit(1)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        if strcmp(respstructsingle.prefcat_excite_nofruit,'Places')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).counts_nofruit(2)=data(g).counts_nofruit(2)+1; data(g).countsmat_nofruit(un,2)=data(g).countsmat_nofruit(un,2)+1; data(g).countsmatB_nofruit(un,2)=1;
+            if temp(3)<0.05, data(g).within_counts_nofruit(2)=data(g).within_counts_nofruit(2)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        if strcmp(respstructsingle.prefcat_excite_nofruit,'BodyParts')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).counts_nofruit(3)=data(g).counts_nofruit(3)+1; data(g).countsmat_nofruit(un,3)=data(g).countsmat_nofruit(un,3)+1; data(g).countsmatB_nofruit(un,3)=1;
+            if temp(4)<0.05, data(g).within_counts_nofruit(3)=data(g).within_counts_nofruit(3)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        if strcmp(respstructsingle.prefcat_excite_nofruit,'Objects')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).counts_nofruit(4)=data(g).counts_nofruit(4)+1; data(g).countsmat_nofruit(un,4)=data(g).countsmat_nofruit(un,4)+1; data(g).countsmatB_nofruit(un,4)=1;
+            if temp(5)<0.05, data(g).within_counts_nofruit(4)=data(g).within_counts_nofruit(4)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        %%% INHIBITORY PREFERENCES (No Fruit)
+        if strcmp(respstructsingle.prefcat_inhibit_nofruit,'Faces')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).countsI_nofruit(1)=data(g).countsI_nofruit(1)+1; data(g).countsmatI_nofruit(un,1)=data(g).countsmatI_nofruit(un,1)+1; data(g).countsmatB_nofruit(un,1)=1;            
+            if temp(1)<0.05, data(g).within_countsI_nofruit(1)=data(g).within_countsI_nofruit(1)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        if strcmp(respstructsingle.prefcat_inhibit_nofruit,'Places')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).countsI_nofruit(2)=data(g).countsI_nofruit(2)+1; data(g).countsmatI_nofruit(un,2)=data(g).countsmatI_nofruit(un,2)+1; data(g).countsmatB_nofruit(un,2)=1;
+            if temp(3)<0.05, data(g).within_countsI_nofruit(2)=data(g).within_countsI_nofruit(2)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        if strcmp(respstructsingle.prefcat_inhibit_nofruit,'BodyParts')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).countsI_nofruit(3)=data(g).countsI_nofruit(3)+1; data(g).countsmatI_nofruit(un,3)=data(g).countsmatI_nofruit(un,3)+1; data(g).countsmatB_nofruit(un,3)=1;
+            if temp(4)<0.05, data(g).within_countsI_nofruit(3)=data(g).within_countsI_nofruit(3)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        if strcmp(respstructsingle.prefcat_inhibit_nofruit,'Objects')==1 & strcmp(respstructsingle.conf_neurtype,'Sensory')==1,
+            data(g).countsI_nofruit(4)=data(g).countsI_nofruit(4)+1; data(g).countsmatI_nofruit(un,4)=data(g).countsmatI_nofruit(un,4)+1; data(g).countsmatB_nofruit(un,4)=1;
+            if temp(5)<0.05, data(g).within_countsI_nofruit(4)=data(g).within_countsI_nofruit(4)+1; end % if anova for within cat is <0.05, increment 1
+        end
+        data(g).excite_rawsi_nofruit=[data(g).excite_rawsi_nofruit;respstructsingle.excite_rawsi_nofruit];
+        data(g).inhibit_rawsi_nofruit=[data(g).inhibit_rawsi_nofruit;respstructsingle.inhibit_rawsi_nofruit];
+        data(g).cat_si_nofruit=[data(g).cat_si_nofruit;respstructsingle.cat_si_nofruit];
+        data(g).APcoords=[data(g).APcoords;respstructsingle.APcoords];
+        data(g).AFNIcoords=[data(g).AFNIcoords;respstructsingle.AFNIcoords];
+        data(g).FMRIdat_coords=[data(g).FMRIdat_coords;respstructsingle.FMRIdat_coords];
+        data(g).AFNItimeseries=[data(g).AFNItimeseries;respstructsingle.AFNItimeseries'];
+        data(g).fmri_rsp=[data(g).fmri_rsp;respstructsingle.fmri_rsp];
+        data(g).fmri_catsi=[data(g).fmri_catsi;respstructsingle.fmri_catsi];
+        data(g).fmri_excite_rawsi=[data(g).fmri_excite_rawsi;respstructsingle.fmri_excite_rawsi];
+        data(g).fmri_inhibit_rawsi=[data(g).fmri_inhibit_rawsi;respstructsingle.fmri_inhibit_rawsi];
+        data(g).face_trad_nofruit=[data(g).face_trad_nofruit;respstructsingle.face_trad_nofruit];
+        data(g).stats_rsp_matrix_avg=[data(g).stats_rsp_matrix_avg;reshape(respstructsingle.stats_rsp_matrix_avg,25,1)];
+        data(g).stats_rsp_matrix_trial=[data(g).stats_rsp_matrix_trial;reshape(respstructsingle.stats_rsp_matrix_trial,25,1)];    
+        data(g).stats_prefexcite_v_others_nofruit=[data(g).stats_prefexcite_v_others_nofruit;respstructsingle.stats_prefexcite_v_others_nofruit];
+        data(g).stats_prefinhibit_v_others_nofruit=[data(g).stats_prefinhibit_v_others_nofruit;respstructsingle.stats_prefinhibit_v_others_nofruit];
+        try
+            data(g).LFP_lfp_average_epoch_rect=[data(g).LFP_lfp_average_epoch_rect;respstructsingle.LFP_lfp_average_epoch_rect];
+            data(g).LFP_cat_avg_epoch_tr=[data(g).LFP_cat_avg_epoch_tr;respstructsingle.LFP_cat_avg_epoch_tr];
+            data(g).LFP_cat_avg_rect_epoch=[data(g).LFP_cat_avg_rect_epoch;respstructsingle.LFP_cat_avg_rect_epoch];
+            data(g).LFP_bestlabel=[data(g).LFP_bestlabel;respstructsingle.LFP_bestlabel];
+            data(g).LFP_cat_anova_rect=[data(g).LFP_cat_anova_rect;respstructsingle.LFP_cat_anova_rect];
+            data(g).LFP_evoked_cat_si=[data(g).LFP_evoked_cat_si;respstructsingle.LFP_evoked_cat_si];
+            data(g).LFP_evokedpure_cat_si=[data(g).LFP_evokedpure_cat_si;respstructsingle.LFP_evokedpure_cat_si];
+            data(g).LFP_freq_epoch_cat=[data(g).LFP_freq_epoch_cat;reshape(respstructsingle.LFP_freq_epoch_cat,1,24)];
+            data(g).LFP_freq_bestlabel=[data(g).LFP_freq_bestlabel;respstructsingle.LFP_freq_bestlabel];
+            data(g).LFP_freq_across_anova=[data(g).LFP_freq_across_anova;respstructsingle.LFP_freq_across_anova];
+            data(g).LFP_freq_cat_si=[data(g).LFP_freq_cat_si;reshape(respstructsingle.LFP_freq_cat_si,1,24)];
+            data(g).LFP_stats_pref_v_others_evoked=[data(g).LFP_stats_pref_v_others_evoked;respstructsingle.LFP_stats_pref_v_others_evoked];
+            data(g).LFP_stats_pref_v_others_0_120Hz=[data(g).LFP_stats_pref_v_others_0_120Hz;respstructsingle.LFP_stats_pref_v_others_0_120Hz];
+            data(g).LFP_stats_pref_v_others_0_20Hz=[data(g).LFP_stats_pref_v_others_0_20Hz;respstructsingle.LFP_stats_pref_v_others_0_20Hz];
+        catch
+        end
+    end
+    % Per Grid Measures
+    data(g).numunits=numunits_grid;
+    temp1=[]; temp2=[];
+    %% Category Selectivity
+    for nug=1:numunits_grid, temp1(nug,:)=data(g).cat_si(nug,:)*data(g).sensory_mat(nug); end
+    for nug=1:numunits_grid, temp2(nug,:)=data(g).cat_si_nofruit(nug,:)*data(g).sensory_mat(nug); end
+    [data(g).cat_si_all_corr_mean data(g).cat_si_all_corr_sem]=mean_noncol(temp1);
+    [data(g).cat_si_nofruit_all_corr_mean data(g).cat_si_nofruit_all_corr_sem]=mean_noncol(temp2);
+        
+    %% Raw Selectivity (only excitatory and "both" neurons)
+    pointer=find(data(g).sensory_mat==1 & ismember(data(g).excite_mat,[1 2])==1);
+    if isempty(pointer)==1, data(g).exciteraw_si_all_corr_mean=0; data(g).exciteraw_si_all_corr_sem=0; else
+        [data(g).exciteraw_si_all_corr_mean data(g).exciteraw_si_all_corr_sem]=mean_noncol(data(g).excite_rawsi(pointer));
+    end; pointer=[];
+    %% Raw Selectivity (only inhibited and "both" neurons)
+    pointer=find(data(g).sensory_mat==1 & ismember(data(g).excite_mat,[2 3])==1);
+    if isempty(pointer)==1, data(g).inhibitraw_si_all_corr_mean=0; data(g).inhibitraw_si_all_corr_sem=0; else
+        [data(g).inhibitraw_si_all_corr_mean data(g).inhibitraw_si_all_corr_sem]=mean_noncol(data(g).inhibit_rawsi(pointer));
+    end; pointer=[];
+    
+    %% Raw Selectivity (only excitatory and "both" neurons) no Fruit
+    pointer=find(data(g).sensory_mat==1 & ismember(data(g).excite_mat,[1 2])==1);
+    if isempty(pointer)==1, data(g).exciteraw_si_nofruit_all_corr_mean=0; data(g).exciteraw_si_nofruit_all_corr_sem=0; else
+        [data(g).exciteraw_si_nofruit_all_corr_mean data(g).exciteraw_si_nofruit_all_corr_sem]=mean_noncol(data(g).excite_rawsi_nofruit(pointer));
+    end; pointer=[];
+    %% Raw Selectivity (only inhibited and "both" neurons) no Fruit
+    pointer=find(data(g).sensory_mat==1 & ismember(data(g).excite_mat,[2 3])==1);
+    if isempty(pointer)==1, data(g).inhibitraw_si_nofruit_all_corr_mean=0; data(g).inhibitraw_si_nofruit_all_corr_sem=0; else
+        [data(g).inhibitraw_si_nofruit_all_corr_mean data(g).inhibitraw_si_nofruit_all_corr_sem]=mean_noncol(data(g).inhibit_rawsi_nofruit(pointer));
+    end; pointer=[];
+    % selectivity for only neurons that prefer given category
+    [data(g).cat_si_corr_mean data(g).cat_si_corr_sem]=mean_noncol(data(g).cat_si(:,1:5) .* data(g).countsmat); % countsmat converts to zero all NON-PREF neurons
+    %% Proportion (Excitatory Responses)
+    excitecounts=sum(data(g).countsmat);
+    for cat=1:5, data(g).propE(cat)=excitecounts(cat)/sum(excitecounts); end %data(g).numsensory; end
+    %% Proportion (Inhibited Responses)
+    inhibitcounts=sum(data(g).countsmatI);
+    for cat=1:5, data(g).propI(cat)=inhibitcounts(cat)/sum(inhibitcounts); end %data(g).numsensory; end
+    %% Proportion (Both)
+    bothcounts=sum(data(g).countsmatB);
+    for cat=1:5, data(g).propB(cat)=bothcounts(cat)/sum(bothcounts); end %data(g).numsensory; end 
+    %% Proportion (Excitatory Responses) nofruit
+    excitecounts_nofruit=sum(data(g).countsmat_nofruit);
+    for cat=1:4, data(g).propE_nofruit(cat)=excitecounts_nofruit(cat)/sum(excitecounts_nofruit); end %data(g).numsensory; end
+    %% Proportion (Inhibited Responses) nofruit
+    inhibitcounts_nofruit=sum(data(g).countsmatI_nofruit);
+    for cat=1:4, data(g).propI_nofruit(cat)=inhibitcounts_nofruit(cat)/sum(inhibitcounts_nofruit); end %data(g).numsensory; end
+    %% Proportion (Both) nofruit
+    bothcounts_nofruit=sum(data(g).countsmatB_nofruit);
+    for cat=1:4, data(g).propB_nofruit(cat)=bothcounts_nofruit(cat)/sum(bothcounts_nofruit); end %data(g).numsensory; end 
+    %% Count Both Response Types
+    data(g).countsB=sum(data(g).countsmatB);
+    data(g).numresponse=sum(data(g).countsB);
+    data(g).countsB_nofruit=sum(data(g).countsmatB_nofruit);
+    data(g).numresponse_nofruit=sum(data(g).countsB_nofruit);    
+end
+toc
+clear respstructsingle temp temp1 temp2 temp3 temp4
+return
+

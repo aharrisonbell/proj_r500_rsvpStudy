@@ -1,0 +1,570 @@
+function plx500_quick(files);
+%%%%%%%%%%%%%%%%%%%%%%%%
+% plx500_quick(files); %
+%%%%%%%%%%%%%%%%%%%%%%%%
+% written by AHB, April 2008,
+% Streamlined version of plx500 for use in recording sessions
+% Analyzes data for RSVP500 (rsvp500f.tim, rsvp500s.tim) task
+% Incoming files must be run through plx_readnexfile and plx_makespikemat
+% before analysis is possible
+% files = optional argument, list files as strings.  Otherwise, program
+% will load files listed in default analyze500.txt
+
+%%% SETUP DEFAULTS
+warning off;
+hmiconfig=generate_hmi_configplex; % generates and loads config file
+parnumlist=[500]; % list of paradigm numbers
+xscale=-200:400; % default time window
+metric_col=2; % column metric (1=spk counts, 2=mean spden, 3=peak spden, 4=mean peak)
+anova=1; % 1=perform anovas, ~1=skip anova analysis
+mpwin=[-5 5]; % mean peak window
+minlatency=50; % minimum latencies
+
+%%% CURRENT METRICS (used to define "response")
+%% to add more epochs, make changes to RESPSTRUCT
+baseline=[-100 0]; % window over which baseline response is calculated
+epoch1=[50 400]; % early cue response window
+epoch2=[100 400]; % middle cue response window
+epoch3=[50 200]; % late cue response window
+
+%%%  LOAD FILE LIST
+if nargin==0,
+    [include,files] = textread(hmiconfig.files500,'%d %s');
+    files = files(find(include==1)); % include only those files that are marked for inclusion
+end
+
+%%% ANALYZE INDIVIDUAL FILES
+disp('***************************************************************************')
+disp('plx500_quick.m - Analysis program for RSVP500-series datafiles (April 2008)')
+disp('***************************************************************************')
+for f=1:length(files), % perform following operations on each nex file listed
+    filename=char(files(f));
+    disp('Removing previous files...')
+    % remove previous files
+    killfiles=dir([hmiconfig.rsvp500spks,filename,'*-500*data.mat']); % graphstructs
+    for kf=1:size(killfiles,1),
+        disp(['...deleting ',killfiles(kf).name])
+        delete([hmiconfig.rsvp500spks,killfiles(kf).name]);
+    end
+    killfilesfig=dir([hmiconfig.figure_dir,'quickrsvp500',filesep,filename,'-*.*']); % figures
+    for kf=1:size(killfilesfig,1),
+        disp(['...deleting ',killfilesfig(kf).name])
+        delete([hmiconfig.figure_dir,'quickrsvp500',filesep,killfilesfig(kf).name]);
+    end
+     %%% setup structures
+    spikestruct=struct('label',[],'faces_spk',[],'fruit_spk',[],'bodyp_spk',[],'places_spk',[],'objct_spk',[],...
+        'faces_ts',[],'fruit_ts',[],'bodyp_ts',[],'places_ts',[],'objct_ts',[]);
+    graphstruct=struct('label',[],'faces_avg',[],'faces_sem',[],'fruit_avg',[],'fruit_sem',[],'bodyp_avg',[],...
+        'bodyp_sem',[],'places_avg',[],'places_sem',[],'objct_avg',[],'objct_sem',[],'allconds',[],'allconds_avg',[],'allconds_sem',[],...
+        'bestconds',[],'worstconds',[],'baseline',[],'cueresponse',[],'spden_trial',[]);
+    respstruct=struct('label',[],'spk_baseline',[],'m_baseline',[],'p_baseline',[],'trial_m_baseline',[],'trial_p_baseline',[],...
+        'anova_latency',[],'anova_baseline',[],'anova_epoch',[],'anova_within_group',[],...
+        'latency',[],'validrsp',[],'cat_avg',[],'cat_bst',[],'cat_sensory',[],...
+        'raw_si',[],'face_trad',[],'pairwise',[],'preferred_category',[],'preferred_sensory',[]);
+    disp(['Analyzing spike activity from ',filename])
+    tempstruct=load([hmiconfig.spikedir,filename,'_spkmat.mat']);
+    tempbehav=tempstruct.behav_matrix(:,[1 3 4 30 40 44]); % load behavioural data
+    tempbehav(:,7)=tempbehav(:,6)-tempbehav(:,5); % solve for cue onset time (aligned to the beginning of each trial, in ms?)
+    tempspike=tempstruct.spikesig;
+    clear tempstruct
+    foundunits=size(tempspike,2);
+    if length(find(ismember(tempbehav(:,2),parnumlist)))<1,
+        disp(['..No RSVP500 trials found!!  Skipping this file.'])
+    else
+        disp(['..found ',num2str(size(tempbehav,1)),' trials...'])
+        disp(['..found ',num2str(foundunits),' units...'])
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %%% Unit loop
+        for un=1:foundunits, % performed for each unit
+            disp(['....analyzing ',char(tempspike(un).labels)])
+            spikestruct(un).label=tempspike(un).labels; % paste label into SPIKE structure
+            graphstruct(un).label=tempspike(un).labels; % paste label into GRAPH structure
+            respstruct(un).label=tempspike(un).labels; % paste label into RESPONSE structure
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%% GENERATE SPIKE DENSITY FUNCTIONS %%%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            disp('......generating spike density functions and graphstruct...')
+            %%% paste individual trial info into SPIKESTRUCT structure
+            pointer=find(ismember(tempbehav(:,2),parnumlist)==1 & tempbehav(:,4)==6 & ismember(tempbehav(:,3),hmiconfig.faces500)==1); % select only correct 500 series trials - faces
+            spikestruct(un).faces_spk=tempspike(un).spikes(pointer,:);
+            spikestruct(un).faces_ts=ceil(tempbehav(pointer,7)*1000); % round cue onset timestamps to nearest ms
+            pointer=find(ismember(tempbehav(:,2),parnumlist)==1 & tempbehav(:,4)==6 & ismember(tempbehav(:,3),hmiconfig.fruit500)==1); % select only correct 500 series trials -
+            spikestruct(un).fruit_spk=tempspike(un).spikes(pointer,:);
+            spikestruct(un).fruit_ts=ceil(tempbehav(pointer,7)*1000);
+            pointer=find(ismember(tempbehav(:,2),parnumlist)==1 & tempbehav(:,4)==6 & ismember(tempbehav(:,3),hmiconfig.bodyp500)==1); % select only correct 500 series trials
+            spikestruct(un).bodyp_spk=tempspike(un).spikes(pointer,:);
+            spikestruct(un).bodyp_ts=ceil(tempbehav(pointer,7)*1000);
+            pointer=find(ismember(tempbehav(:,2),parnumlist)==1 & tempbehav(:,4)==6 & ismember(tempbehav(:,3),hmiconfig.places500)==1); % select only correct 500 series trials
+            spikestruct(un).places_spk=tempspike(un).spikes(pointer,:);
+            spikestruct(un).places_ts=ceil(tempbehav(pointer,7)*1000);
+            pointer=find(ismember(tempbehav(:,2),parnumlist)==1 & tempbehav(:,4)==6 & ismember(tempbehav(:,3),hmiconfig.objct500)==1); % select only correct 500 series trials
+            spikestruct(un).objct_spk=tempspike(un).spikes(pointer,:);
+            spikestruct(un).objct_ts=ceil(tempbehav(pointer,7)*1000);
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%% Prepare GRAPHSTRUCT structure (used for storing average spden functions)
+            graphstruct(un).allconds=unique(tempbehav(ismember(tempbehav(:,2),parnumlist)==1,3));
+            graphstruct(un).allconds_avg=zeros(length(unique(graphstruct(un).allconds)),5000);
+            graphstruct(un).allconds_sem=zeros(length(unique(graphstruct(un).allconds)),5000);
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%% Generate average spike density functions for each CONDITION (listed in CAT_avg/CAT_sem)
+            [graphstruct(un).faces_avg,graphstruct(un).faces_sem]=plx_avgspden(spikestruct(un).faces_spk,spikestruct(un).faces_ts,5000,1,hmiconfig.gausskernel);
+            [graphstruct(un).fruit_avg,graphstruct(un).fruit_sem]=plx_avgspden(spikestruct(un).fruit_spk,spikestruct(un).fruit_ts,5000,1,hmiconfig.gausskernel);
+            [graphstruct(un).bodyp_avg,graphstruct(un).bodyp_sem]=plx_avgspden(spikestruct(un).bodyp_spk,spikestruct(un).bodyp_ts,5000,1,hmiconfig.gausskernel);
+            [graphstruct(un).places_avg,graphstruct(un).places_sem]=plx_avgspden(spikestruct(un).places_spk,spikestruct(un).places_ts,5000,1,hmiconfig.gausskernel);
+            [graphstruct(un).objct_avg,graphstruct(un).objct_sem]=plx_avgspden(spikestruct(un).objct_spk,spikestruct(un).objct_ts,5000,1,hmiconfig.gausskernel);
+            graphstruct(un).allconds_avg=zeros(100,5000)*.1;
+            %%%%%%%%%%%%%%%%
+            %%% ANALYSIS %%%
+            %%%%%%%%%%%%%%%%
+            %%% Condition loop
+            disp('......analyzing each CONDITION...')
+            for cnd=1:100, % first loop creates average spike density function for each condition
+                %%% Generate average spike density functions for each STIMULUS (graphstruct.allconds_avg(cnd,:) and graphstruct.allconds_sem(cnd,:))
+                pointer=find(ismember(tempbehav(:,2),parnumlist)==1 & tempbehav(:,4)==6 & ismember(tempbehav(:,3),cnd)==1); % locate all correct trials that match condition number
+                if isempty(pointer)==1, % if no trials are found, paste zero values
+                    graphstruct(un).allconds_avg(cnd,:)=zeros(1,5000);
+                    graphstruct(un).allconds_sem(cnd,:)=zeros(1,5000);
+                else
+                    tempspikes=tempspike(un).spikes(pointer,:);
+                    temp_ts=ceil(tempbehav(pointer,7)*1000); % round cue onset timestamps to nearest ms
+                    [graphstruct(un).allconds_avg(cnd,:),graphstruct(un).allconds_sem(cnd,:)]=plx_avgspden(tempspikes,temp_ts,5000,1,hmiconfig.gausskernel);
+                    if isnan(graphstruct(un).allconds_avg(cnd,1))==1, % fills in empty rows
+                        graphstruct(un).allconds_avg(cnd,:)=zeros(1,5000);
+                    end
+                end
+            end
+            for cnd=1:100, % first loop creates average spike density function for each condition
+                pointer=find(ismember(tempbehav(:,2),parnumlist)==1 & tempbehav(:,4)==6 & ismember(tempbehav(:,3),cnd)==1); % select correct trials matching cnd#
+                tempspikes=tempspike(un).spikes(pointer,:);
+                temp_ts=ceil(tempbehav(pointer,7)*1000); % round cue onset timestamps to nearest ms
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                %%% Paste spike counts, etc into RESPSTRUCT structure
+                tempbaseline=0; temp1=0; temp2=0; temp3=0;
+                for tr=1:size(tempspikes,1), % scroll through each trial for each condition
+                    tempbaseline=tempbaseline+(length(find(tempspikes(tr,:)>=temp_ts(tr)+baseline(1) & tempspikes(tr,:)<=temp_ts(tr)+baseline(2))));
+                    temp1=temp1+(length(find(tempspikes(tr,:)>=temp_ts(tr)+epoch1(1) & tempspikes(tr,:)<=temp_ts(tr)+epoch1(2))));
+                    temp2=temp2+(length(find(tempspikes(tr,:)>=temp_ts(tr)+epoch2(1) & tempspikes(tr,:)<=temp_ts(tr)+epoch2(2))));
+                    temp3=temp3+(length(find(tempspikes(tr,:)>=temp_ts(tr)+epoch3(1) & tempspikes(tr,:)<=temp_ts(tr)+epoch3(2))));
+                end
+                %%% calculate mean baseline measures
+                respstruct(un).m_baseline(cnd)=mean(mean(graphstruct(un).allconds_avg(:,baseline(1)+1000:baseline(2)+1000)')); % average baseline rate
+                respstruct(un).m_epoch1(cnd)=mean(graphstruct(un).allconds_avg(cnd,epoch1(1)+1000:epoch1(2)+1000)');
+                respstruct(un).m_epoch2(cnd)=mean(graphstruct(un).allconds_avg(cnd,epoch2(1)+1000:epoch2(2)+1000)');
+                respstruct(un).m_epoch3(cnd)=mean(graphstruct(un).allconds_avg(cnd,epoch3(1)+1000:epoch3(2)+1000)');
+                respstruct(un).latency(cnd)=plx_calclatency(graphstruct(un).allconds_avg(cnd,:),...
+                    mean(graphstruct(un).allconds_sem(cnd,:)),1000,respstruct(un).m_baseline(cnd),size(tempspikes,1));
+                if respstruct(un).latency(cnd)<minlatency, respstruct(un).latency(cnd)=0; end % remove any latencies less than 50ms
+                if respstruct(un).m_epoch1(cnd) < (2*respstruct(un).m_baseline(cnd)),
+                    respstruct(un).validrsp(cnd,2)=0; % classifies as valid/invalid (>2X baseline)
+                else respstruct(un).validrsp(cnd,2)=1; end
+            end
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%% Subtract Baseline and repeat epoch quantification
+            m_avgbaseline=mean(respstruct(un).m_baseline);
+            for cnd=1:100, % third condition loop subtracts average baseline and recalculates analysis parameters
+                respstruct(un).m_epoch1_nobase(cnd)=respstruct(un).m_epoch1(cnd)-m_avgbaseline;
+                respstruct(un).m_epoch2_nobase(cnd)=respstruct(un).m_epoch2(cnd)-m_avgbaseline;
+                respstruct(un).m_epoch3_nobase(cnd)=respstruct(un).m_epoch3(cnd)-m_avgbaseline;
+            end
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%% Determine average/best categorical responses (1 col/metric)
+            [respstruct(un).cat_avg(1,:),respstruct(un).cat_sem(1,:),respstruct(un).cat_bst(1,:)]=rsp_avgbest(respstruct(un),hmiconfig.faces500);
+            [respstruct(un).cat_avg(2,:),respstruct(un).cat_sem(2,:),respstruct(un).cat_bst(2,:)]=rsp_avgbest(respstruct(un),hmiconfig.fruit500);
+            [respstruct(un).cat_avg(3,:),respstruct(un).cat_sem(3,:),respstruct(un).cat_bst(3,:)]=rsp_avgbest(respstruct(un),hmiconfig.places500);
+            [respstruct(un).cat_avg(4,:),respstruct(un).cat_sem(4,:),respstruct(un).cat_bst(4,:)]=rsp_avgbest(respstruct(un),hmiconfig.bodyp500);
+            [respstruct(un).cat_avg(5,:),respstruct(un).cat_sem(5,:),respstruct(un).cat_bst(5,:)]=rsp_avgbest(respstruct(un),hmiconfig.objct500);
+            %%% No baseline
+            [respstruct(un).cat_avg_nobase(1,:),respstruct(un).cat_sem_nobase(1,:),respstruct(un).cat_bst_nobase(1,:)]=rsp_avgbest_nobase(respstruct(un),hmiconfig.faces500);
+            [respstruct(un).cat_avg_nobase(2,:),respstruct(un).cat_sem_nobase(2,:),respstruct(un).cat_bst_nobase(2,:)]=rsp_avgbest_nobase(respstruct(un),hmiconfig.fruit500);
+            [respstruct(un).cat_avg_nobase(3,:),respstruct(un).cat_sem_nobase(3,:),respstruct(un).cat_bst_nobase(3,:)]=rsp_avgbest_nobase(respstruct(un),hmiconfig.places500);
+            [respstruct(un).cat_avg_nobase(4,:),respstruct(un).cat_sem_nobase(4,:),respstruct(un).cat_bst_nobase(4,:)]=rsp_avgbest_nobase(respstruct(un),hmiconfig.bodyp500);
+            [respstruct(un).cat_avg_nobase(5,:),respstruct(un).cat_sem_nobase(5,:),respstruct(un).cat_bst_nobase(5,:)]=rsp_avgbest_nobase(respstruct(un),hmiconfig.objct500);
+            %%% Calculate mean categorical latencies
+            [respstruct(un).cat_latency(1,1),respstruct(un).cat_latency(1,2)]=mean_sem(nonzeros(respstruct(un).latency(hmiconfig.faces500)));
+            [respstruct(un).cat_latency(2,1),respstruct(un).cat_latency(2,2)]=mean_sem(nonzeros(respstruct(un).latency(hmiconfig.fruit500)));
+            [respstruct(un).cat_latency(3,1),respstruct(un).cat_latency(3,2)]=mean_sem(nonzeros(respstruct(un).latency(hmiconfig.places500)));
+            [respstruct(un).cat_latency(4,1),respstruct(un).cat_latency(4,2)]=mean_sem(nonzeros(respstruct(un).latency(hmiconfig.bodyp500)));
+            [respstruct(un).cat_latency(5,1),respstruct(un).cat_latency(5,2)]=mean_sem(nonzeros(respstruct(un).latency(hmiconfig.objct500)));
+            %%% Sensory/Non-sensory for each category (compares the mean baseline to the mean response in epoch1)
+            respstruct(un).cat_sensory(1,2)=signrank(respstruct(un).m_baseline(hmiconfig.faces500),respstruct(un).m_epoch1(hmiconfig.faces500));
+            respstruct(un).cat_sensory(2,2)=signrank(respstruct(un).m_baseline(hmiconfig.fruit500),respstruct(un).m_epoch1(hmiconfig.fruit500));
+            respstruct(un).cat_sensory(3,2)=signrank(respstruct(un).m_baseline(hmiconfig.places500),respstruct(un).m_epoch1(hmiconfig.places500));
+            respstruct(un).cat_sensory(4,2)=signrank(respstruct(un).m_baseline(hmiconfig.bodyp500),respstruct(un).m_epoch1(hmiconfig.bodyp500));
+            respstruct(un).cat_sensory(5,2)=signrank(respstruct(un).m_baseline(hmiconfig.objct500),respstruct(un).m_epoch1(hmiconfig.objct500));
+            
+            %%% Determine EXCITE/INHIBIT/BOTH
+            % algorithm based on significant difference between baseline
+            % and epoch1.
+            respstruct(un).excite_inhibit=zeros(1,5);
+            if respstruct(un).cat_sensory(1,metric_col)<0.06, % faces
+                if mean(respstruct(un).m_baseline(hmiconfig.faces500))<mean(respstruct(un).m_epoch1(hmiconfig.faces500)),
+                    respstruct(un).excite_inhibit(1)=1; else respstruct(un).excite_inhibit(1)=-1;
+                end
+            end
+            if respstruct(un).cat_sensory(2,metric_col)<0.06, % fruit
+                if mean(respstruct(un).m_baseline(hmiconfig.fruit500))<mean(respstruct(un).m_epoch1(hmiconfig.fruit500)),
+                    respstruct(un).excite_inhibit(2)=1; else respstruct(un).excite_inhibit(2)=-1;
+                end
+            end
+            if respstruct(un).cat_sensory(3,metric_col)<0.06, % places
+                if mean(respstruct(un).m_baseline(hmiconfig.places500))<mean(respstruct(un).m_epoch1(hmiconfig.places500)),
+                    respstruct(un).excite_inhibit(3)=1; else respstruct(un).excite_inhibit(3)=-1;
+                end
+            end
+            if respstruct(un).cat_sensory(4,metric_col)<0.06, % bodyparts
+                if mean(respstruct(un).m_baseline(hmiconfig.bodyp500))<mean(respstruct(un).m_epoch1(hmiconfig.bodyp500)),
+                    respstruct(un).excite_inhibit(4)=1; else respstruct(un).excite_inhibit(4)=-1;
+                end
+            end
+            if respstruct(un).cat_sensory(5,metric_col)<0.06, % objects
+                if mean(respstruct(un).m_baseline(hmiconfig.objct500))<mean(respstruct(un).m_epoch1(hmiconfig.objct500)),
+                    respstruct(un).excite_inhibit(5)=1; else respstruct(un).excite_inhibit(5)=-1;
+                end
+            end
+            excitemarkers=find(respstruct(un).excite_inhibit==1);
+            inhibitmarkers=find(respstruct(un).excite_inhibit==-1);
+            if isempty(excitemarkers)~=1 & isempty(inhibitmarkers)~=1, respstruct(un).excitetype='Both';
+            elseif isempty(excitemarkers)~=1 & isempty(inhibitmarkers)==1, respstruct(un).excitetype='Excite';
+            elseif isempty(excitemarkers)==1 & isempty(inhibitmarkers)~=1, respstruct(un).excitetype='Inhibit';
+            elseif isempty(excitemarkers)==1 & isempty(inhibitmarkers)==1, respstruct(un).excitetype='Non-Responsive';
+            end
+
+            %%% adding label to preferred category
+            [junk,ind]=max(respstruct(un).cat_avg(:,metric_col));
+            switch ind
+                case 1, respstruct(un).preferred_category='Faces'; respstruct(un).preferred_sensory=respstruct(un).cat_sensory(1,metric_col);
+                case 2, respstruct(un).preferred_category='Fruit'; respstruct(un).preferred_sensory=respstruct(un).cat_sensory(2,metric_col);
+                case 3, respstruct(un).preferred_category='Places'; respstruct(un).preferred_sensory=respstruct(un).cat_sensory(3,metric_col);
+                case 4, respstruct(un).preferred_category='BodyParts'; respstruct(un).preferred_sensory=respstruct(un).cat_sensory(4,metric_col);
+                case 5, respstruct(un).preferred_category='Objects'; respstruct(un).preferred_sensory=respstruct(un).cat_sensory(5,metric_col);
+            end
+           %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%% Determine best and worst stimulus (based on peak responses over cue response window (defined above)
+            tempmax=max(graphstruct(un).allconds_avg(:,epoch1(1)+1000:epoch1(2)+1000)'); % calculate peak response over cue response
+            tempmin=min(graphstruct(un).allconds_avg(:,epoch1(1)+1000:epoch1(2)+1000)'); % calculate peak response over cue response
+            catind=1:20:101;
+            for category=1:length(catind)-1,
+                [crap,graphstruct(un).bestconds(category)]=max(tempmax(catind(category):catind(category+1)-1));
+                [crap,graphstruct(un).worstconds(category)]=min(tempmin(catind(category):catind(category+1)-1));
+            end
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%% Calculate selectivity indices (here is the place to make
+            %%% changes to the algorithms !!!
+            % each column refers to category
+            % each row refers to metric
+            %respstruct(un).cat_si(1,1)=calc_si(respstruct(un).cat_avg,1,1); % spk, faces
+            %respstruct(un).cat_si(2,1)=calc_si(respstruct(un).cat_avg,2,1); % spk, fruit
+            %respstruct(un).cat_si(3,1)=calc_si(respstruct(un).cat_avg,3,1); % spk, places
+            %respstruct(un).cat_si(4,1)=calc_si(respstruct(un).cat_avg,4,1); % spk, bodyparts
+            %respstruct(un).cat_si(5,1)=calc_si(respstruct(un).cat_avg,5,1); % spk, objects
+            respstruct(un).cat_si(1,2)=calc_si(respstruct(un).cat_avg,1,2); % mean, faces
+            respstruct(un).cat_si(2,2)=calc_si(respstruct(un).cat_avg,2,2); % mean, fruit
+            respstruct(un).cat_si(3,2)=calc_si(respstruct(un).cat_avg,3,2); % mean, places
+            respstruct(un).cat_si(4,2)=calc_si(respstruct(un).cat_avg,4,2); % mean, bodyparts
+            respstruct(un).cat_si(5,2)=calc_si(respstruct(un).cat_avg,5,2); % mean, objects
+            %respstruct(un).cat_si(1,3)=calc_si(respstruct(un).cat_avg,1,3); % peak, faces
+            %respstruct(un).cat_si(2,3)=calc_si(respstruct(un).cat_avg,2,3); % peak, fruit
+            %respstruct(un).cat_si(3,3)=calc_si(respstruct(un).cat_avg,3,3); % peak, places
+            %respstruct(un).cat_si(4,3)=calc_si(respstruct(un).cat_avg,4,3); % peak, bodyparts
+            %respstruct(un).cat_si(5,3)=calc_si(respstruct(un).cat_avg,5,3); % peak, objects
+            %respstruct(un).cat_si(1,4)=calc_si(respstruct(un).cat_avg,1,4); % meanpeak, faces
+            %respstruct(un).cat_si(2,4)=calc_si(respstruct(un).cat_avg,2,4); % meanpeak, fruit
+            %respstruct(un).cat_si(3,4)=calc_si(respstruct(un).cat_avg,3,4); % meanpeak, places
+            %respstruct(un).cat_si(4,4)=calc_si(respstruct(un).cat_avg,4,4); % meanpeak, bodyparts
+            %respstruct(un).cat_si(5,4)=calc_si(respstruct(un).cat_avg,5,4); % meanpeak, objects
+            %respstruct(un).cat_si(1,5)=calc_si(respstruct(un).cat_avg,1,5); % area, faces
+            %respstruct(un).cat_si(2,5)=calc_si(respstruct(un).cat_avg,2,5); % area, fruit
+            %respstruct(un).cat_si(3,5)=calc_si(respstruct(un).cat_avg,3,5); % area, places
+            %respstruct(un).cat_si(4,5)=calc_si(respstruct(un).cat_avg,4,5); % area, bodyparts
+            %respstruct(un).cat_si(5,5)=calc_si(respstruct(un).cat_avg,5,5); % area, objects
+            %%% face selectivity without FRUIT
+            %respstruct(un).cat_si(6,1)=calc_si_nofruit(respstruct(un).cat_avg,1,1);
+            respstruct(un).cat_si(6,2)=calc_si_nofruit(respstruct(un).cat_avg,1,2);
+            %respstruct(un).cat_si(6,3)=calc_si_nofruit(respstruct(un).cat_avg,1,3);
+            %respstruct(un).cat_si(6,4)=calc_si_nofruit(respstruct(un).cat_avg,1,4);
+            %respstruct(un).cat_si(6,5)=calc_si_nofruit(respstruct(un).cat_avg,1,5);
+            %%% calculate non-specific selectivity
+            %respstruct(un).raw_si(1)=calc_rawsi(respstruct(un).cat_avg,1);
+            respstruct(un).raw_si(2)=calc_rawsi(respstruct(un).cat_avg,2);
+            %respstruct(un).raw_si(3)=calc_rawsi(respstruct(un).cat_avg,3);
+            %respstruct(un).raw_si(4)=calc_rawsi(respstruct(un).cat_avg,4);
+            %respstruct(un).raw_si(5)=calc_rawsi(respstruct(un).cat_avg,5);
+            nonface=mean(respstruct(un).cat_avg(2:4,metric_col));
+            %%% Calculate selectivity indices AFTER subtracting baseline
+            %respstruct(un).cat_si_nobase(1,1)=calc_si(respstruct(un).cat_avg_nobase,1,1);
+            %respstruct(un).cat_si_nobase(2,1)=calc_si(respstruct(un).cat_avg_nobase,2,1);
+            %respstruct(un).cat_si_nobase(3,1)=calc_si(respstruct(un).cat_avg_nobase,3,1);
+            %respstruct(un).cat_si_nobase(4,1)=calc_si(respstruct(un).cat_avg_nobase,4,1);
+            %respstruct(un).cat_si_nobase(5,1)=calc_si(respstruct(un).cat_avg_nobase,5,1);
+            respstruct(un).cat_si_nobase(1,2)=calc_si(respstruct(un).cat_avg_nobase,1,2);
+            respstruct(un).cat_si_nobase(2,2)=calc_si(respstruct(un).cat_avg_nobase,2,2);
+            respstruct(un).cat_si_nobase(3,2)=calc_si(respstruct(un).cat_avg_nobase,3,2);
+            respstruct(un).cat_si_nobase(4,2)=calc_si(respstruct(un).cat_avg_nobase,4,2);
+            respstruct(un).cat_si_nobase(5,2)=calc_si(respstruct(un).cat_avg_nobase,5,2);
+            %respstruct(un).cat_si_nobase(1,3)=calc_si(respstruct(un).cat_avg_nobase,1,3);
+            %respstruct(un).cat_si_nobase(2,3)=calc_si(respstruct(un).cat_avg_nobase,2,3);
+            %respstruct(un).cat_si_nobase(3,3)=calc_si(respstruct(un).cat_avg_nobase,3,3);
+            %respstruct(un).cat_si_nobase(4,3)=calc_si(respstruct(un).cat_avg_nobase,4,3);
+            %respstruct(un).cat_si_nobase(5,3)=calc_si(respstruct(un).cat_avg_nobase,5,3);
+            %respstruct(un).cat_si_nobase(1,4)=calc_si(respstruct(un).cat_avg_nobase,1,4);
+            %respstruct(un).cat_si_nobase(2,4)=calc_si(respstruct(un).cat_avg_nobase,2,4);
+            %respstruct(un).cat_si_nobase(3,4)=calc_si(respstruct(un).cat_avg_nobase,3,4);
+            %respstruct(un).cat_si_nobase(4,4)=calc_si(respstruct(un).cat_avg_nobase,4,4);
+            %respstruct(un).cat_si_nobase(5,4)=calc_si(respstruct(un).cat_avg_nobase,5,4);
+            %respstruct(un).cat_si_nobase(1,4)=calc_si(respstruct(un).cat_avg_nobase,1,5);
+            %respstruct(un).cat_si_nobase(2,4)=calc_si(respstruct(un).cat_avg_nobase,2,5);
+            %respstruct(un).cat_si_nobase(3,4)=calc_si(respstruct(un).cat_avg_nobase,3,5);
+            %respstruct(un).cat_si_nobase(4,4)=calc_si(respstruct(un).cat_avg_nobase,4,5);
+            %respstruct(un).cat_si_nobase(5,4)=calc_si(respstruct(un).cat_avg_nobase,5,5);
+            %%% face selectivity without FRUIT
+            %respstruct(un).cat_si_nobase(6,1)=calc_si_nofruit(respstruct(un).cat_avg_nobase,1,1);
+            respstruct(un).cat_si_nobase(6,2)=calc_si_nofruit(respstruct(un).cat_avg_nobase,1,2);
+            %respstruct(un).cat_si_nobase(6,3)=calc_si_nofruit(respstruct(un).cat_avg_nobase,1,3);
+            %respstruct(un).cat_si_nobase(6,4)=calc_si_nofruit(respstruct(un).cat_avg_nobase,1,4);
+            %respstruct(un).cat_si_nobase(6,5)=calc_si_nofruit(respstruct(un).cat_avg_nobase,1,5);
+            %%% calculate non-specific selectivity
+            %respstruct(un).raw_si_nobase(1)=calc_rawsi(respstruct(un).cat_avg_nobase,1);
+            respstruct(un).raw_si_nobase(2)=calc_rawsi(respstruct(un).cat_avg_nobase,2);
+            %respstruct(un).raw_si_nobase(3)=calc_rawsi(respstruct(un).cat_avg_nobase,3);
+            %respstruct(un).raw_si_nobase(4)=calc_rawsi(respstruct(un).cat_avg_nobase,4);
+            %respstruct(un).raw_si_nobase(5)=calc_rawsi(respstruct(un).cat_avg_nobase,5);
+
+            %%% calculate pure selectivity
+            respstruct(un).pure_si(1,:)=calc_puresi(respstruct(un).cat_avg,metric_col,1);
+            respstruct(un).pure_si(2,:)=calc_puresi(respstruct(un).cat_avg,metric_col,2);
+            respstruct(un).pure_si(3,:)=calc_puresi(respstruct(un).cat_avg,metric_col,3);
+            respstruct(un).pure_si(4,:)=calc_puresi(respstruct(un).cat_avg,metric_col,4);
+            respstruct(un).pure_si(5,:)=calc_puresi(respstruct(un).cat_avg,metric_col,5);
+
+            %%% Solve for traditional face-selectivity
+            nonface=mean(respstruct(un).cat_avg(2:4,metric_col));
+            if respstruct(un).cat_avg(1,metric_col)>(2*nonface), respstruct(un).face_trad=1;
+            else respstruct(un).face_trad=0; end
+            %respstruct(un).pairwise=pairwisematrix(respstruct(un),1,metric_col);
+
+            %%% Solve for waveform parameters
+            signame=char(respstruct(un).label);
+            wavedata=load([hmiconfig.wave_raw,signame(1:20),'_raw.mat']);
+            wf_data=mean(wavedata.waverawdata');
+            [respstruct(un).wf_params(1) respstruct(un).wf_params(2)]=min(wf_data);
+            [respstruct(un).wf_params(3) respstruct(un).wf_params(4)]=max(wf_data);
+            respstruct(un).wf_params(5)=(respstruct(un).wf_params(4)-respstruct(un).wf_params(2))*25;
+        end % end loop for each unit
+        clear tempbehav tempspike spk_avgbaseline m_avgbaseline p_avgbaseline
+
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %%% Save output file for population analysis
+        for un=1:size(respstruct,2), % saves an individual file for each unit
+            respstructsingle=respstruct(un);
+            graphstructsingle=graphstruct(un);
+            respstructsingle.datemodified=date;
+            unitname=char(respstructsingle.label);
+            outputfname = [hmiconfig.rsvp500spks,unitname(1:end-4),'-500responsedata.mat'];
+            save(outputfname,'respstructsingle')
+            outputfname = [hmiconfig.rsvp500spks,unitname(1:end-4),'-500graphdata.mat'];
+            disp('Saving average spike density functions...')
+            save(outputfname,'graphstructsingle');
+        end
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %%% graph the file
+        disp('Graphing data...')
+        for un=1:foundunits, % one figure per unit
+            plotneuron(hmiconfig,xscale,graphstruct(un),respstruct(un),char(files(f)),metric_col)
+        end
+    end
+end
+return
+
+function plotneuron(hmiconfig,xscale,graphstruct,respstruct,fname,metric_col)
+fontsize_sml=7; fontsize_med=8; fontsize_lrg=9;
+%%% determining baseline %%%
+switch metric_col
+    case 1, avg_baseline=mean(respstruct.spk_baseline); avg_baseline1=mean(respstruct.spk_baseline);
+    case 2, avg_baseline=mean(respstruct.m_baseline); avg_baseline1=mean(respstruct.m_baseline);
+    case 3, avg_baseline=mean(respstruct.p_baseline); avg_baseline1=mean(respstruct.p_baseline);
+    case 4, avg_baseline=mean(respstruct.mp_baseline); avg_baseline1=mean(respstruct.mp_baseline);
+    case 5, avg_baseline=mean(respstruct.mp_baseline); avg_baseline1=mean(respstruct.area_baseline);
+end
+metric_col_list={'SpikeCounts','Mean Spden','Peak Spden','MeanPeak','Area'};
+figure
+clf; cla; set(gcf,'Units','Normalized'); set(gcf,'Position',[0.1 0.1 0.8 0.8]); set(gca,'FontName','Arial')
+xrange=(1000+xscale(1)):(1000+xscale(end));
+subplot(4,3,[1 4 7 10]) % colour plot
+pcolor(xscale,1:100,graphstruct.allconds_avg(:,xrange))
+shading flat
+%caxis([10 90])
+hold on
+plot([xscale(1) xscale(end)],[21 21],'w-','LineWidth',1)
+plot([xscale(1) xscale(end)],[41 41],'w-','LineWidth',1)
+plot([xscale(1) xscale(end)],[61 61],'w-','LineWidth',1)
+plot([xscale(1) xscale(end)],[81 81],'w-','LineWidth',1)
+plot([0 0],[0 100],'w:','LineWidth',1)
+colorbar('SouthOutside')
+text(401,graphstruct.bestconds(1)+0.5,['\leftarrow',num2str(graphstruct.bestconds(1))],'FontSize',fontsize_lrg,'FontWeight','Bold')
+text(401,graphstruct.bestconds(2)+20.5,['\leftarrow',num2str(graphstruct.bestconds(2))],'FontSize',fontsize_lrg,'FontWeight','Bold')
+text(401,graphstruct.bestconds(3)+40.5,['\leftarrow',num2str(graphstruct.bestconds(3))],'FontSize',fontsize_lrg,'FontWeight','Bold')
+text(401,graphstruct.bestconds(4)+60.5,['\leftarrow',num2str(graphstruct.bestconds(4))],'FontSize',fontsize_lrg,'FontWeight','Bold')
+text(401,graphstruct.bestconds(5)+80.5,['\leftarrow',num2str(graphstruct.bestconds(5))],'FontSize',fontsize_lrg,'FontWeight','Bold')
+text(0,101.5,'0','FontSize',fontsize_sml,'HorizontalAlignment','Center')
+text(xscale(1),101.5,num2str(xscale(1)),'FontSize',fontsize_sml,'HorizontalAlignment','Center')
+text(xscale(end),101.5,num2str(xscale(end)),'FontSize',fontsize_sml,'HorizontalAlignment','Center')
+text(xscale(1)-(abs(xscale(1))*.5),10,'Faces','FontSize',fontsize_med,'HorizontalAlignment','Center','Rotation',90)
+text(xscale(1)-(abs(xscale(1))*.5),30,'Fruit','FontSize',fontsize_med,'HorizontalAlignment','Center','Rotation',90)
+text(xscale(1)-(abs(xscale(1))*.5),50,'Places','FontSize',fontsize_med,'HorizontalAlignment','Center','Rotation',90)
+text(xscale(1)-(abs(xscale(1))*.5),70,'Bodyparts','FontSize',fontsize_med,'HorizontalAlignment','Center','Rotation',90)
+text(xscale(1)-(abs(xscale(1))*.5),90,'Objects','FontSize',fontsize_med,'HorizontalAlignment','Center','Rotation',90)
+set(gca,'FontSize',7); xlim([xscale(1) xscale(end)]); box off; axis off; axis ij; ylim([0 100]);
+signame=char(graphstruct.label);
+
+subplot(4,3,2) % average spike density functions
+hold on
+plot(xscale,graphstruct.faces_avg(xrange),'r-','LineWidth',2)
+plot(xscale,graphstruct.fruit_avg(xrange),'m-','LineWidth',2)
+plot(xscale,graphstruct.places_avg(xrange),'b-','LineWidth',2)
+plot(xscale,graphstruct.bodyp_avg(xrange),'y-','LineWidth',2)
+plot(xscale,graphstruct.objct_avg(xrange),'g-','LineWidth',2)
+plot([xscale(1) xscale(end)],[avg_baseline avg_baseline],'k--','LineWidth',0.25)
+h=axis;
+plot([respstruct.cat_latency(1) respstruct.cat_latency(1)],[0 h(4)],'r-','LineWidth',0.25)
+plot([respstruct.cat_latency(2) respstruct.cat_latency(2)],[0 h(4)],'m-','LineWidth',0.25)
+plot([respstruct.cat_latency(3) respstruct.cat_latency(3)],[0 h(4)],'b-','LineWidth',0.25)
+plot([respstruct.cat_latency(4) respstruct.cat_latency(4)],[0 h(4)],'y-','LineWidth',0.25)
+plot([respstruct.cat_latency(5) respstruct.cat_latency(5)],[0 h(4)],'g-','LineWidth',0.25)
+plot([0 0],[0 h(4)],'k:','LineWidth',0.5)
+plot([xscale(1) xscale(end)],[0 0],'k-')
+ylabel('sp/s','FontSize',fontsize_med); set(gca,'FontSize',fontsize_med); xlim([xscale(1) xscale(end)]); box off;
+try
+    title([signame(1:end-4),': RSVP500 Task (',char(metric_col_list(metric_col)),') ',...
+    char(respstruct.gridlocation),' (',char(respstruct.APIndex),') - ',num2str(respstruct.depth),'um'],'FontSize',10,'FontWeight','Bold');
+catch
+    title([signame(1:end-4),': RSVP500 Task (',char(metric_col_list(metric_col)),')'],'FontSize',10,'FontWeight','Bold'); % if unable to sync
+end
+
+subplot(4,3,5) % average responses
+hold on
+errorbar(1:5,respstruct.cat_avg(:,metric_col),respstruct.cat_sem(:,metric_col));
+bar(1:5,respstruct.cat_avg(:,metric_col))
+plot([0.25 5.75],[avg_baseline1 avg_baseline1],'k--','LineWidth',0.25)
+ylabel('sp/s','FontSize',fontsize_med); set(gca,'FontSize',fontsize_med);
+set(gca,'XTick',1:5); set(gca,'XTickLabels',{'F','Ft','Pl','Bp','Ob'})
+title('Average Category Response','FontSize',fontsize_lrg)
+h=axis; ylim([0 h(4)]); xlim([0.5 5.5]);
+
+subplot(4,3,6) % mean latencies
+hold on
+errorbar(1:5,respstruct.cat_latency(:,1),respstruct.cat_latency(:,2));
+bar(1:5,respstruct.cat_latency(:,1))
+ylabel('ms','FontSize',fontsize_med); set(gca,'FontSize',fontsize_med);
+set(gca,'XTick',1:5); set(gca,'XTickLabels',{'F','Ft','Pl','Bp','Ob'}); ylim([0 200]);
+title('Average Response Latency','FontSize',fontsize_lrg); xlim([0.5 5.5]);
+h=axis;
+
+subplot(4,3,[8 9]) % selectivity
+hold on
+bar(1:7,[[respstruct.cat_si(:,metric_col);respstruct.raw_si(metric_col)],[respstruct.cat_si_nobase(:,metric_col);respstruct.raw_si_nobase(metric_col)]],'group')
+plot([0.5 7.5],[0.1 0.1],'b:','LineWidth',0.25)
+plot([0.5 7.5],[-0.1 -0.1],'b:','LineWidth',0.25)
+plot([0.5 7.5],[0.33 0.33],'r:','LineWidth',0.25)
+plot([0.5 7.5],[-0.33 -0.33],'r:','LineWidth',0.25)
+ylabel('SI','FontSize',fontsize_med); set(gca,'FontSize',fontsize_med);
+set(gca,'XTick',1:7); set(gca,'XTickLabels',{'Face','Fruit','Place','Bodyp','Object','FnoFt','RAW'}); ylim([-0.7 0.7]);
+if respstruct.face_trad==1, text(0.4,0.4,'Face-Selective (2x)','FontSize',fontsize_lrg,'FontWeight','Bold','Color','r'); end
+title('Selectivity Indices (vs. average of all other categories)','FontSize',fontsize_lrg)
+
+subplot(4,3,[11 12]) % pure selectivity
+hold on
+bar(1:5,respstruct.pure_si,'group')
+ylabel('SI','FontSize',fontsize_med); set(gca,'FontSize',fontsize_med);
+set(gca,'XTick',1:5); set(gca,'XTickLabels',{'Face','Fruit','Place','Bodyp','Object'}); ylim([-0.7 0.7]);
+legend('vs.F','vs.Ft','vs.Pl','vs.Bp','vs.Ob','Orientation','Horizontal','Location','SouthOutside')
+title('Pure Selectivity Indices (vs. Single Categories)','FontSize',fontsize_lrg)
+
+%New panel - shows Spikes
+subplot(4,3,3)
+wavedata=load([hmiconfig.wave_raw,signame(1:20),'_raw.mat']);
+hold on
+try plot(-200:25:575,wavedata.waverawdata(:,1:end)','-','Color',[0.5 0.5 0.5],'LineWidth',0.01); end
+minval=min(min(wavedata.waverawdata));
+maxval=max(max(wavedata.waverawdata));
+rangeadj=abs(minval-maxval)*0.1;
+plot([(respstruct.wf_params(2)*25)-200 (respstruct.wf_params(2)*25)-200],[minval maxval],'g-')
+plot([(respstruct.wf_params(4)*25)-200 (respstruct.wf_params(4)*25)-200],[minval maxval],'g-')
+text(200,-1.6,['Duration: ',num2str(respstruct.wf_params(5)),' us'],'FontSize',7)
+plot([-200 600],[0 0],'k:'); xlim([-200 600]);
+plot(-200:25:575,mean(wavedata.waverawdata'),'r-','LineWidth',2); ylim([minval-rangeadj maxval+rangeadj]);
+xlabel('Time (us)'); ylabel('Amplitude (mV)'); set(gca,'FontSize',fontsize_med)
+title('Unit Waveforms','FontSize',fontsize_lrg)
+
+%matfigname=[hmiconfig.figure_dir,'rsvp500',filesep,signame(1:end-4),'_quickrsvp500.fig'];
+jpgfigname=[hmiconfig.figure_dir,'quickrsvp500',filesep,signame(1:end-4),'_quickrsvp500_',char(metric_col_list(metric_col)),'.jpg'];
+%illfigname=['C:\Documents and Settings\Andrew Bell\Desktop\',signame(1:end-4),'_rsvp500a.ai'];
+print(gcf,jpgfigname,'-djpeg') % generates an JPEG file of the figure
+%print(gcf,illfigname,'-dill') % generates an Adobe Illustrator file of the figure
+%hgsave(matfigname);
+if hmiconfig.printer==1, % prints the figure to the default printer (if printer==1)
+    print
+end
+return
+
+function [av,sm,bst]=rsp_avgbest(data,stim_no);
+%%% one column for each metric (currently 3)
+%[av(1),sm(1)]=mean_sem(data.spk_epoch1(stim_no));
+[av(2),sm(2)]=mean_sem(data.m_epoch1(stim_no));
+%[av(3),sm(3)]=mean_sem(data.p_epoch1(stim_no));
+%[av(4),sm(4)]=mean_sem(data.mp_epoch1(stim_no));
+%[av(5),sm(5)]=mean_sem(data.area_epoch1(stim_no));
+%bst(1)=max(data.spk_epoch1(stim_no));
+bst(2)=max(data.m_epoch1(stim_no));
+%bst(3)=max(data.p_epoch1(stim_no));
+%bst(4)=max(data.mp_epoch1(stim_no));
+%bst(5)=max(data.area_epoch1(stim_no));
+return
+
+function [av,sm,bst]=rsp_avgbest_nobase(data,stim_no);
+%%% one column for each metric (currently 3)
+%[av(1),sm(1)]=mean_sem(data.spk_epoch1_nobase(stim_no));
+[av(2),sm(2)]=mean_sem(data.m_epoch1_nobase(stim_no));
+%[av(3),sm(3)]=mean_sem(data.p_epoch1_nobase(stim_no));
+%[av(4),sm(4)]=mean_sem(data.mp_epoch1_nobase(stim_no));
+%[av(5),sm(5)]=mean_sem(data.area_epoch1_nobase(stim_no));
+%bst(1)=max(data.spk_epoch1_nobase(stim_no));
+bst(2)=max(data.m_epoch1_nobase(stim_no));
+%bst(3)=max(data.p_epoch1_nobase(stim_no));
+%bst(4)=max(data.mp_epoch1_nobase(stim_no));
+%bst(5)=max(data.area_epoch1_nobase(stim_no));
+return
+
+function si=calc_si(data,ind_col,metric_col)
+[numcol,junk]=size(data);
+cols=1:numcol;
+othercols=find(cols~=ind_col);
+non_ind=mean(data(othercols,metric_col));
+maincol=data(ind_col,metric_col);
+si=(maincol-non_ind)/(maincol+non_ind);
+return
+
+function si=calc_si_nofruit(data,ind_col,metric_col)
+[numcol,junk]=size(data);
+cols=1:numcol;
+non_ind=mean(data([2 3 4],metric_col));
+maincol=data(ind_col,metric_col);
+si=(maincol-non_ind)/(maincol+non_ind);
+return
+
+function si=calc_rawsi(data,metric_col)
+[numcol,junk]=size(data);
+cols=1:numcol;
+[val,ind]=max(data(:,metric_col));
+othercols=find(cols~=ind);
+non_ind=mean(data(othercols,metric_col));
+maincol=data(ind,metric_col);
+si=(maincol-non_ind)/(maincol+non_ind);
+return
+
+function output=calc_puresi(data,metric_col,refcol);
+maincol=data(refcol,metric_col);
+for cc=1:5,
+    noncol=data(cc,metric_col);
+    output(cc)=(maincol-noncol)/(maincol+noncol);
+end
+return
