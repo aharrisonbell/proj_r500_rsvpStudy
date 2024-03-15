@@ -174,7 +174,7 @@ for f=1:length(files), % perform following operations on each nex file listed
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %%% Generate average spike density functions for each CONDITION (listed in CAT_avg/CAT_sem)
             [graphstructsingle.faces_avg,graphstructsingle.faces_sem]=plx_avgspden(spikestructsingle.faces_spk,spikestructsingle.faces_ts,5000,1,hmiconfig.gausskernel);
-            [graphstructsingle.fruit_avg,graphstructsingle.fruit_sem]=plx_avgspden(spikestructsingle.fruit_spk,spikestructsingle.fruit_ts,5000,1,hmiconfig.gausskernel);
+            [graphstructsingle.fruit_avg,graphplotneuronstructsingle.fruit_sem]=plx_avgspden(spikestructsingle.fruit_spk,spikestructsingle.fruit_ts,5000,1,hmiconfig.gausskernel);
             [graphstructsingle.bodyp_avg,graphstructsingle.bodyp_sem]=plx_avgspden(spikestructsingle.bodyp_spk,spikestructsingle.bodyp_ts,5000,1,hmiconfig.gausskernel);
             [graphstructsingle.places_avg,graphstructsingle.places_sem]=plx_avgspden(spikestructsingle.places_spk,spikestructsingle.places_ts,5000,1,hmiconfig.gausskernel);
             [graphstructsingle.objct_avg,graphstructsingle.objct_sem]=plx_avgspden(spikestructsingle.objct_spk,spikestructsingle.objct_ts,5000,1,hmiconfig.gausskernel);
